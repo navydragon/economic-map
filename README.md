@@ -1346,11 +1346,11 @@ Exact tooling will be established during repository bootstrap.
 
 ## Phase 1 local development
 
-Requirements: Docker Compose, Node.js, pnpm, Python 3.12+, and uv. The five map points are synthetic test fixtures, not real sites.
+Requirements: Docker Compose, Node.js 24, pnpm, Python 3.12+, and uv. The five map points are synthetic test fixtures, not real sites.
 
 ```powershell
-Copy-Item .env.example .env
-docker compose up -d
+Copy-Item .env.example .env # first run only; keep your local settings on later runs
+docker compose up -d postgres martin
 pnpm install
 pnpm dev
 ```
@@ -1363,21 +1363,34 @@ uv sync
 uv run --env-file ../../.env uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Open `http://127.0.0.1:5173`. The development overlay shows tile and API status. Vite proxies `/tiles` to Martin and `/api` to FastAPI; their targets are set by `MARTIN_PROXY_TARGET` and `API_PROXY_TARGET` in `.env`. `VITE_TILE_URL` and `VITE_API_URL` set the browser paths. For a deployed static build, route those paths to Martin and FastAPI or set the Vite variables to suitable public URLs at build time.
+Open `http://127.0.0.1:5173`. The development overlay shows tile, API, and database status. Vite proxies `/tiles` to Martin and `/api` to FastAPI; their targets are set by `MARTIN_PROXY_TARGET` and `API_PROXY_TARGET` in `.env`. `VITE_TILE_URL` and `VITE_API_URL` set the browser paths. For a deployed static build, route those paths to Martin and FastAPI or set the Vite variables to suitable public URLs at build time.
 
-Quick checks:
+Validate the running services from the repository root:
 
 ```powershell
 Invoke-RestMethod http://127.0.0.1:8000/health
 Invoke-RestMethod http://127.0.0.1:8000/health/db
 Invoke-RestMethod http://127.0.0.1:3000/demo_sites
-docker compose exec postgres psql -U russia_map -d russia_map -c "SELECT id, name, ST_AsText(geom) FROM demo_sites ORDER BY id;"
-pnpm typecheck
-pnpm lint
-pnpm build
+Invoke-WebRequest http://127.0.0.1:3000/demo_sites/0/0/0 | Select-Object StatusCode, RawContentLength
+docker compose exec postgres psql -U russia_map -d russia_map -c "SELECT PostGIS_Version(), count(*) FROM demo_sites GROUP BY 1;"
+pnpm check
 ```
 
-The SQL in `infra/database/init` runs only when the Postgres volume is first created. Future schema changes should use migrations rather than editing this bootstrap in place.
+Run the automated API checks from `apps/api` after `uv sync`:
+
+```powershell
+uv run pytest tests/test_health.py
+uv run --env-file ../../.env pytest tests/test_integration.py # requires running PostGIS, Martin, and FastAPI
+```
+
+Stop the containers with `docker compose down`; the database volume remains. SQL in `infra/database/init` runs only when that volume is first created. If you change the synthetic initialization fixture during Phase 1, this **development reset deletes the local database volume** and loads the fixture again:
+
+```powershell
+docker compose down -v
+docker compose up -d postgres martin
+```
+
+Future real schema changes should use migrations rather than editing the bootstrap in place.
 
 ---
 

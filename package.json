@@ -6,6 +6,7 @@
     "dev": "pnpm --filter @russia-map/web dev",
     "build": "pnpm --filter @russia-map/web build",
     "lint": "pnpm --filter @russia-map/web lint",
-    "typecheck": "pnpm --filter @russia-map/web typecheck"
+    "typecheck": "pnpm --filter @russia-map/web typecheck",
+    "check": "pnpm lint && pnpm typecheck && pnpm build"
   }
 }

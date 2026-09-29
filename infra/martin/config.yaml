@@ -12,3 +12,7 @@ postgres:
       srid: 4326
       geometry_column: geom
       id_column: id
+      properties:
+        name: text
+        category: text
+        value: int4
