@@ -1,0 +1,33 @@
+services:
+  postgres:
+    image: postgis/postgis:17-3.5
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-russia_map}
+      POSTGRES_USER: ${POSTGRES_USER:-russia_map}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/database/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  martin:
+    image: ghcr.io/maplibre/martin:1.16.1
+    command: ["--config", "/config/config.yaml"]
+    environment:
+      MARTIN_DATABASE_URL: postgresql://${POSTGRES_USER:-russia_map}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-russia_map}
+    ports:
+      - "127.0.0.1:${MARTIN_PORT:-3000}:3000"
+    volumes:
+      - ./infra/martin/config.yaml:/config/config.yaml:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

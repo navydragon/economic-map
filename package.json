@@ -1,0 +1,11 @@
+{
+  "name": "russia-map",
+  "private": true,
+  "packageManager": "pnpm@11.19.0",
+  "scripts": {
+    "dev": "pnpm --filter @russia-map/web dev",
+    "build": "pnpm --filter @russia-map/web build",
+    "lint": "pnpm --filter @russia-map/web lint",
+    "typecheck": "pnpm --filter @russia-map/web typecheck"
+  }
+}

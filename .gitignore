@@ -1,0 +1,12 @@
+.env
+.env.local
+.env.*.local
+.venv/
+__pycache__/
+.pytest_cache/
+node_modules/
+.pnpm-store/
+dist/
+*.py[cod]
+*.tsbuildinfo
+.DS_Store

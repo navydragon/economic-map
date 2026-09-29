@@ -1,0 +1,14 @@
+# Martin 1.16 configuration. Only the synthetic source is published.
+listen_addresses: 0.0.0.0:3000
+web_ui: disable
+on_invalid: abort
+postgres:
+  connection_string: ${MARTIN_DATABASE_URL}
+  auto_publish: false
+  tables:
+    demo_sites:
+      schema: public
+      table: demo_sites
+      srid: 4326
+      geometry_column: geom
+      id_column: id
