@@ -20,6 +20,18 @@ PUBLIC_FIELDS = {
 }
 
 
+def run_normalization() -> None:
+    script = Path(__file__).resolve().parents[3] / "pipelines" / "railways" / "import_railways.py"
+    subprocess.run([
+        sys.executable, str(script), "normalize",
+        "--source-slug", SOURCE_SLUG,
+        "--source-name", "CI synthetic railway fixture",
+        "--source-url", "https://github.com/navydragon/economic-map/blob/main/data/fixtures/osm/railways.osm",
+        "--snapshot-at", "2026-01-01T00:00:00+00:00",
+        "--retrieved-at", "2026-01-01T00:00:00+00:00",
+    ], check=True)
+
+
 def test_railway_migration_and_normalization() -> None:
     with get_engine().connect() as connection:
         assert connection.scalar(text(
@@ -43,8 +55,9 @@ def test_railway_migration_and_normalization() -> None:
         assert all(row.source_object_type == "way" and row.status == "active" for row in rows)
         assert all(row[6:] == (4326, "ST_LineString", True) for row in rows)
         assert connection.scalar(text("""
-            SELECT count(*) FROM staging_osm.railway_lines
+            SELECT count(*) FROM staging_osm_railways.railway_lines
         """)) == 3
+        assert connection.scalar(text("SELECT count(*) FROM staging_osm.sentinel")) == 1
         assert connection.scalar(text("""
             SELECT EXISTS (
                 SELECT 1 FROM pg_indexes WHERE schemaname = 'public'
@@ -55,15 +68,7 @@ def test_railway_migration_and_normalization() -> None:
         """)) is True
         original_ids = [row.id for row in rows]
 
-    script = Path(__file__).resolve().parents[3] / "pipelines" / "railways" / "import_railways.py"
-    subprocess.run([
-        sys.executable, str(script), "normalize",
-        "--source-slug", SOURCE_SLUG,
-        "--source-name", "CI synthetic railway fixture",
-        "--source-url", "https://github.com/navydragon/economic-map/blob/main/data/fixtures/osm/railways.osm",
-        "--snapshot-at", "2026-01-01T00:00:00+00:00",
-        "--retrieved-at", "2026-01-01T00:00:00+00:00",
-    ], check=True)
+    run_normalization()
     with get_engine().connect() as connection:
         after = connection.execute(text("""
             SELECT id FROM public.railway_segments WHERE source_id = :source_id
@@ -97,3 +102,55 @@ def test_martin_serves_canonical_railways_as_mvt() -> None:
     }
     assert any(feature["properties"].get("service") == "siding" for feature in features)
     assert any(feature["properties"].get("name") == "Synthetic Main" for feature in features)
+
+
+def test_reimport_updates_attributes_and_removes_missing_ways() -> None:
+    engine = get_engine()
+    with engine.connect() as staging_connection:
+        with staging_connection.begin():
+            staging_connection.execute(text("""
+                CREATE TEMP TABLE railway_stage_backup ON COMMIT PRESERVE ROWS AS
+                SELECT * FROM staging_osm_railways.railway_lines
+            """))
+            staging_connection.execute(text("""
+                UPDATE staging_osm_railways.railway_lines
+                SET name = 'Synthetic Main Updated' WHERE way_id = 100
+            """))
+            staging_connection.execute(text("""
+                DELETE FROM staging_osm_railways.railway_lines WHERE way_id = 101
+            """))
+
+        try:
+            with engine.connect() as connection:
+                original_id = connection.scalar(text("""
+                    SELECT id FROM public.railway_segments
+                    WHERE source_id = (SELECT id FROM public.data_sources WHERE slug = :slug)
+                      AND source_object_type = 'way' AND source_object_id = 100
+                """), {"slug": SOURCE_SLUG})
+            run_normalization()
+            with engine.connect() as connection:
+                rows = connection.execute(text("""
+                    SELECT id, source_object_id, name FROM public.railway_segments
+                    WHERE source_id = (SELECT id FROM public.data_sources WHERE slug = :slug)
+                    ORDER BY source_object_id
+                """), {"slug": SOURCE_SLUG}).all()
+            assert [row.source_object_id for row in rows] == [100, 102]
+            assert rows[0].id == original_id
+            assert rows[0].name == "Synthetic Main Updated"
+        finally:
+            with staging_connection.begin():
+                staging_connection.execute(text("TRUNCATE staging_osm_railways.railway_lines"))
+                staging_connection.execute(text("""
+                    INSERT INTO staging_osm_railways.railway_lines
+                    SELECT * FROM railway_stage_backup
+                """))
+                staging_connection.execute(text("DROP TABLE railway_stage_backup"))
+            run_normalization()
+    with engine.connect() as connection:
+        restored = connection.execute(text("""
+            SELECT source_object_id, name FROM public.railway_segments
+            WHERE source_id = (SELECT id FROM public.data_sources WHERE slug = :slug)
+            ORDER BY source_object_id
+        """), {"slug": SOURCE_SLUG}).all()
+    assert [row.source_object_id for row in restored] == EXPECTED_IDS
+    assert restored[0].name == "Synthetic Main"

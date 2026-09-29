@@ -10,7 +10,7 @@ An OSM extract is a source representation; its tags and lifecycle should not own
 
 ## Decision
 
-Use osm2pgsql 2.3.1 Flex Output in the pinned third-party `iboates/osm2pgsql:2.3.1` image to import accepted railway ways into `staging_osm.railway_lines`. A separate SQL normalization validates staging and transactionally upserts canonical `railway_segments`, preserving OSM way identity and source provenance. Each import recreates staging; canonical records remain governed by Alembic.
+Use osm2pgsql 2.3.1 Flex Output in the pinned third-party `iboates/osm2pgsql:2.3.1` image to import accepted railway ways into `staging_osm_railways.railway_lines`. A separate SQL normalization validates staging and transactionally upserts canonical `railway_segments`, preserving OSM way identity and source provenance. Each import recreates only railway staging; canonical records remain governed by Alembic.
 
 ## Consequences
 

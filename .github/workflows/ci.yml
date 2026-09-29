@@ -36,7 +36,7 @@ jobs:
           python-version: "3.12"
           version: "0.12.5"
       - run: uv sync --locked --group dev
-      - run: uv run --locked pytest tests/test_health.py -q
+      - run: uv run --locked pytest tests/test_health.py tests/test_railway_benchmark.py -q
 
   integration:
     runs-on: ubuntu-latest
@@ -66,6 +66,10 @@ jobs:
       - name: Migrate canonical schema
         working-directory: apps/api
         run: uv run --locked alembic upgrade head
+      - name: Preserve unrelated OSM staging during railway import
+        run: |
+          docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 \
+            -c 'CREATE SCHEMA staging_osm; CREATE TABLE staging_osm.sentinel (id integer PRIMARY KEY); INSERT INTO staging_osm.sentinel VALUES (1);'
       - name: Import synthetic OSM railway fixture
         working-directory: apps/api
         run: |

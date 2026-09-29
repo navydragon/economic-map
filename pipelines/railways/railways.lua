@@ -13,7 +13,7 @@ local railways = osm2pgsql.define_way_table('railway_lines', {
     { column = 'bridge', type = 'text' },
     { column = 'tunnel', type = 'text' },
     { column = 'geom', type = 'linestring', projection = 4326 },
-}, { schema = 'staging_osm' })
+}, { schema = 'staging_osm_railways' })
 
 function osm2pgsql.process_way(object)
     local tags = object.tags
