@@ -1,4 +1,4 @@
-# Martin 1.16 configuration. Only the synthetic source is published.
+# Martin 1.16 configuration. Only explicit canonical and synthetic sources are published.
 listen_addresses: 0.0.0.0:3000
 web_ui: disable
 on_invalid: abort
@@ -16,3 +16,18 @@ postgres:
         name: text
         category: text
         value: int4
+    railway_segments:
+      schema: public
+      table: railway_segments
+      srid: 4326
+      geometry_column: geom
+      id_column: id
+      properties:
+        name: text
+        ref: text
+        railway_type: text
+        usage: text
+        service: text
+        operator: text
+        electrified: text
+        gauge: text

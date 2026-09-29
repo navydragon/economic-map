@@ -10,3 +10,6 @@ dist/
 *.py[cod]
 *.tsbuildinfo
 .DS_Store
+*.osm.pbf
+data/raw/
+data/staging/

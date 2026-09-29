@@ -24,6 +24,7 @@ export function MapViewport({ onTileStatusChange }: MapViewportProps) {
         zoom: 2.1,
         minZoom: 1,
         maxZoom: 15,
+        attributionControl: false,
       })
     } catch (error) {
       setMapError(error instanceof Error ? error.message : 'Map could not initialize')
@@ -33,6 +34,7 @@ export function MapViewport({ onTileStatusChange }: MapViewportProps) {
 
     let tileFailed = false
     map.addControl(new maplibregl.NavigationControl(), 'top-right')
+    map.addControl(new maplibregl.AttributionControl({ compact: false }), 'bottom-right')
     map.on('sourcedata', (event) => {
       if (!tileFailed && event.sourceId === demoSourceId && map.isSourceLoaded(demoSourceId)) {
         onTileStatusChange('ready')
@@ -48,7 +50,7 @@ export function MapViewport({ onTileStatusChange }: MapViewportProps) {
 
   return (
     <>
-      <div ref={containerRef} className="map" aria-label="Map of synthetic demo sites across Russia" />
+      <div ref={containerRef} className="map" aria-label="Map of synthetic demo sites and railway infrastructure" />
       {mapError && <div className="map-error" role="alert">Map error: {mapError}</div>}
     </>
   )

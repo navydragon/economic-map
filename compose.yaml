@@ -29,5 +29,20 @@ services:
       postgres:
         condition: service_healthy
 
+  osm2pgsql:
+    profiles: [tools]
+    image: iboates/osm2pgsql:2.3.1
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - type: bind
+        source: ${OSM_INPUT_DIR:-./data/fixtures/osm}
+        target: /input
+        read_only: true
+      - ./pipelines/railways/railways.lua:/config/railways.lua:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   postgres_data:

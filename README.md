@@ -1350,7 +1350,12 @@ Requirements: Docker Compose, Node.js 24, pnpm, Python 3.12+, and uv. The five m
 
 ```powershell
 Copy-Item .env.example .env # first run only; keep your local settings on later runs
-docker compose up -d postgres martin
+docker compose up -d --wait postgres
+Set-Location apps/api
+uv sync --locked --group dev
+uv run --env-file ../../.env alembic upgrade head
+Set-Location ../..
+docker compose up -d --wait martin
 pnpm install
 pnpm dev
 ```
@@ -1387,10 +1392,16 @@ Stop the containers with `docker compose down`; the database volume remains. SQL
 
 ```powershell
 docker compose down -v
-docker compose up -d postgres martin
+docker compose up -d --wait postgres
+Set-Location apps/api
+uv run --env-file ../../.env alembic upgrade head
+Set-Location ../..
+docker compose up -d --wait martin
 ```
 
 Future real schema changes should use migrations rather than editing the bootstrap in place.
+
+The first real domain schema is managed by Alembic. For railway import, source attribution, and diagnostics, see [OSM railway ingestion](docs/data/osm-railways.md).
 
 ---
 

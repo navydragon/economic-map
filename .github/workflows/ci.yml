@@ -34,6 +34,7 @@ jobs:
       - uses: astral-sh/setup-uv@v10.1.0
         with:
           python-version: "3.12"
+          version: "0.12.5"
       - run: uv sync --locked --group dev
       - run: uv run --locked pytest tests/test_health.py -q
 
@@ -54,13 +55,29 @@ jobs:
       - uses: astral-sh/setup-uv@v10.1.0
         with:
           python-version: "3.12"
+          version: "0.12.5"
       - name: Install API test dependencies
         working-directory: apps/api
         run: uv sync --locked --group dev
-      - name: Start PostGIS and Martin
+      - name: Start PostGIS
         run: |
           docker compose config --quiet
-          docker compose up -d --wait --wait-timeout 120 postgres martin
+          docker compose up -d --wait --wait-timeout 120 postgres
+      - name: Migrate canonical schema
+        working-directory: apps/api
+        run: uv run --locked alembic upgrade head
+      - name: Import synthetic OSM railway fixture
+        working-directory: apps/api
+        run: |
+          uv run --locked python ../../pipelines/railways/import_railways.py import \
+            --input ../../data/fixtures/osm/railways.osm \
+            --source-slug ci-synthetic-railways \
+            --source-name "CI synthetic railway fixture" \
+            --source-url "https://github.com/navydragon/economic-map/blob/main/data/fixtures/osm/railways.osm" \
+            --snapshot-at 2026-01-01T00:00:00+00:00 \
+            --retrieved-at 2026-01-01T00:00:00+00:00
+      - name: Start Martin
+        run: docker compose up -d --wait --wait-timeout 120 martin
       - name: Wait for Martin source
         run: |
           for attempt in {1..60}; do
@@ -86,7 +103,7 @@ jobs:
           exit 1
       - name: Verify database, MVT, and API database health
         working-directory: apps/api
-        run: uv run --locked pytest tests/test_integration.py -q
+        run: uv run --locked pytest tests/test_integration.py tests/test_railway_integration.py -q
       - name: Diagnostics
         if: failure()
         run: |

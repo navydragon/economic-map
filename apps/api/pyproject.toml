@@ -13,6 +13,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "alembic>=1.16,<2",
     "httpx>=0.28,<1",
     "mapbox-vector-tile>=2.2,<3",
     "pytest>=8,<10",

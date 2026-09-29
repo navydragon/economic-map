@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="russia-map synthetic test fixture">
+  <node id="1" lat="55.7000" lon="37.5000" version="1" />
+  <node id="2" lat="55.7100" lon="37.5400" version="1" />
+  <node id="3" lat="55.7200" lon="37.5800" version="1" />
+  <node id="4" lat="55.7300" lon="37.6200" version="1" />
+  <node id="5" lat="55.7400" lon="37.6600" version="1" />
+  <node id="6" lat="55.7500" lon="37.7000" version="1" />
+  <way id="100" version="1">
+    <nd ref="1"/><nd ref="2"/><nd ref="3"/>
+    <tag k="railway" v="rail"/><tag k="name" v="Synthetic Main"/>
+    <tag k="ref" v="TEST-1"/><tag k="electrified" v="contact_line"/>
+  </way>
+  <way id="101" version="1">
+    <nd ref="3"/><nd ref="4"/><nd ref="5"/>
+    <tag k="railway" v="narrow_gauge"/><tag k="name" v="Synthetic Narrow"/>
+    <tag k="gauge" v="750"/>
+  </way>
+  <way id="102" version="1">
+    <nd ref="3"/><nd ref="6"/>
+    <tag k="railway" v="rail"/><tag k="service" v="siding"/>
+    <tag k="operator" v="Synthetic Test Operator"/>
+  </way>
+  <way id="103" version="1">
+    <nd ref="1"/><nd ref="6"/>
+    <tag k="railway" v="tram"/><tag k="name" v="Excluded Synthetic Tram"/>
+  </way>
+  <way id="104" version="1">
+    <nd ref="2"/><nd ref="5"/>
+    <tag k="railway" v="abandoned"/><tag k="name" v="Excluded Synthetic Abandoned"/>
+  </way>
+  <way id="105" version="1">
+    <nd ref="2"/><nd ref="4"/>
+    <tag k="railway" v="rail"/><tag k="disused" v="yes"/>
+    <tag k="name" v="Excluded Synthetic Disused Rail"/>
+  </way>
+</osm>
