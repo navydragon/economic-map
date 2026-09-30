@@ -19,4 +19,5 @@ postgres:
   functions:
     railway_segments:
       schema: public
-      function: railway_segments_mvt(integer, integer, integer)
+      # Martin resolves this source by the base function name; no overload needs disambiguation.
+      function: railway_segments_mvt
