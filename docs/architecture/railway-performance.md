@@ -16,4 +16,14 @@ The script writes ignored `benchmark.json` and `benchmark.md` in the current dir
 
 Three real-data runs established the initial scale: Kaliningrad (~29 MB PBF, 1,796 canonical segments), North Caucasus Federal District (~129 MB, 6,182 segments), and Central Federal District (~879 MB, 51,712 segments). In the Central run, a hot sampled z5 tile contained 12,341 features, transferred ~144 KB gzip, and took ~335 ms. A hot sampled z7 tile contained 8,110 features, transferred ~114 KB gzip, and took ~232 ms. These are **before** zoom-aware delivery measurements, not improvement claims.
 
-Many of these features are service tracks that MapLibre hides below z11. Phase 2C moves that visibility rule into a PostgreSQL MVT function: no railway content below z5, non-service rows at z5–z10, and all canonical rows from z11. Martin publishes the function under the existing `railway_segments` source ID, so the manual benchmark samples the production tile path unchanged at z5, z7, z9, z11, and z13. The Central benchmark should be rerun with the same input and parameters to measure the effect. PMTiles and generalized geometries remain possible future options if subsequent evidence calls for them.
+Many of these features are service tracks that MapLibre hides below z11. Phase 2C moves that visibility rule into a PostgreSQL MVT function: no railway content below z5, non-service rows at z5–z10, and all canonical rows from z11. Martin publishes the function under the existing `railway_segments` source ID, so the manual benchmark samples the production tile path unchanged at z5, z7, z9, z11, and z13. PMTiles and generalized geometries remain possible future options if subsequent evidence calls for them.
+
+Benchmark #4 reran the same Central Federal District PBF (SHA-256 `7ee7793c58c5c9b210837d06706ae73c5152e8120490eb1a5afdd64db4288378`, 51,712 canonical rows) and confirmed that zoom filtering sharply reduced low-zoom features and payloads:
+
+| Zoom | Features, before → #4 | Wire bytes, before → #4 | Request time, before → #4 |
+| --- | ---: | ---: | ---: |
+| z5 | 12,341 → 2,658 | 144,303 → 44,012 | 0.335s → 0.096s |
+| z7 | 8,110 → 1,938 | 113,855 → 36,599 | 0.232s → 0.061s |
+| z9 | 4,172 → 1,271 | 71,290 → 26,036 | 0.101s → 0.066s |
+
+A follow-up review found that spatial candidate selection used the unbuffered tile envelope while `ST_AsMVTGeom` used a 64-unit buffer. The query envelope must include the same `64 / 4096` margin to retain lines just outside visible tile edges. Benchmark #4 is therefore an intermediate post-filtering result; rerun the benchmark after the buffer fix before treating its measurements as the final railway baseline.

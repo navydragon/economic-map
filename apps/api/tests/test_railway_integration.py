@@ -56,7 +56,7 @@ def test_railway_migration_and_normalization() -> None:
     with get_engine().connect() as connection:
         assert connection.scalar(text(
             "SELECT version_num FROM alembic_version"
-        )) == "0002_zoom_aware_railway_mvt"
+        )) == "0003_railway_mvt_buffer"
         source = connection.execute(text("""
             SELECT id, publisher, license, url FROM public.data_sources WHERE slug = :slug
         """), {"slug": SOURCE_SLUG}).one()
@@ -151,6 +151,68 @@ def test_railway_mvt_function_filters_without_removing_canonical_rows() -> None:
             assert (any(feature["properties"].get("service") == "siding"
                         for feature in features_by_id.values())) == (zoom >= 11)
         assert connection.scalar(text("SELECT count(*) FROM public.railway_segments")) == 3
+
+
+def test_railway_mvt_includes_geometry_within_tile_buffer() -> None:
+    zoom, x, y = 11, 1200, 700
+    insert_sql = text("""
+        WITH bounds AS (SELECT ST_TileEnvelope(:z, :x, :y) AS tile)
+        INSERT INTO public.railway_segments
+            (source_id, source_object_type, source_object_id, name, railway_type, geom)
+        SELECT
+            (SELECT id FROM public.data_sources WHERE slug = :source_slug),
+            'way', :object_id, :name, 'rail',
+            ST_Transform(ST_MakeLine(
+                ST_SetSRID(ST_MakePoint(
+                    ST_XMin(tile) - (ST_XMax(tile) - ST_XMin(tile)) * :offset_units / 4096.0,
+                    ST_YMin(tile) + (ST_YMax(tile) - ST_YMin(tile)) * 0.4
+                ), 3857),
+                ST_SetSRID(ST_MakePoint(
+                    ST_XMin(tile) - (ST_XMax(tile) - ST_XMin(tile)) * :offset_units / 4096.0,
+                    ST_YMin(tile) + (ST_YMax(tile) - ST_YMin(tile)) * 0.6
+                ), 3857)
+            ), 4326)
+        FROM bounds
+        RETURNING id
+    """)
+    bounds_sql = text("""
+        SELECT
+            r.geom && ST_Transform(ST_TileEnvelope(:z, :x, :y), 4326) AS in_tile,
+            r.geom && ST_Transform(
+                ST_TileEnvelope(:z, :x, :y, margin => 64.0 / 4096.0), 4326
+            ) AS in_query_buffer
+        FROM public.railway_segments AS r WHERE r.id = :id
+    """)
+
+    with get_engine().connect() as connection:
+        transaction = connection.begin()
+        try:
+            parameters = {"z": zoom, "x": x, "y": y, "source_slug": SOURCE_SLUG}
+            near_id = connection.execute(insert_sql, {
+                **parameters, "object_id": -1, "name": "Buffered edge near",
+                "offset_units": 32,
+            }).scalar_one()
+            far_id = connection.execute(insert_sql, {
+                **parameters, "object_id": -2, "name": "Buffered edge far",
+                "offset_units": 96,
+            }).scalar_one()
+
+            assert tuple(connection.execute(bounds_sql, {**parameters, "id": near_id}).one()) == (
+                False, True
+            )
+            assert tuple(connection.execute(bounds_sql, {**parameters, "id": far_id}).one()) == (
+                False, False
+            )
+
+            tile = connection.scalar(text("""
+                SELECT public.railway_segments_mvt(:z, :x, :y)
+            """), parameters)
+            features = {feature["id"]: feature for feature in decoded_features(tile)}
+            assert near_id in features
+            assert features[near_id]["geometry"]["type"] == "LineString"
+            assert far_id not in features
+        finally:
+            transaction.rollback()
 
 
 def test_reimport_updates_attributes_and_removes_missing_ways() -> None:
