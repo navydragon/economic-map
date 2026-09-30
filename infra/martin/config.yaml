@@ -21,3 +21,6 @@ postgres:
       schema: public
       # Martin resolves this source by the base function name; no overload needs disambiguation.
       function: railway_segments_mvt
+    road_segments:
+      schema: public
+      function: road_segments_mvt

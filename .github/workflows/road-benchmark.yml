@@ -1,0 +1,161 @@
+name: Road real-data benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      extract_url:
+        description: HTTPS URL of a compatible .osm.pbf extract
+        type: string
+        required: true
+        default: https://download.geofabrik.de/russia/kaliningrad-latest.osm.pbf
+      source_slug:
+        description: Logical source slug for this isolated run
+        type: string
+        required: true
+        default: osm-kaliningrad-roads-benchmark
+      source_name:
+        description: Human-readable source name
+        type: string
+        required: true
+        default: OSM Kaliningrad major roads benchmark extract
+      snapshot_at:
+        description: Optional source-reported ISO 8601 snapshot timestamp with timezone
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: '5432'
+      POSTGRES_DB: russia_map
+      POSTGRES_USER: russia_map
+      POSTGRES_PASSWORD: benchmark_runner_only
+      MARTIN_PORT: '3000'
+      MARTIN_URL: http://127.0.0.1:3000
+      EXTRACT_URL: ${{ inputs.extract_url }}
+      SOURCE_SLUG: ${{ inputs.source_slug }}
+      SOURCE_NAME: ${{ inputs.source_name }}
+      SNAPSHOT_AT: ${{ inputs.snapshot_at }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.1.0
+        with:
+          python-version: '3.12'
+          version: '0.12.5'
+      - name: Install benchmark dependencies
+        working-directory: apps/api
+        run: uv sync --locked --group dev
+      - name: Download explicit real extract into runner temp
+        id: download
+        shell: bash
+        run: |
+          python - <<'PY'
+          import datetime
+          import os
+          import re
+          from urllib.parse import urlsplit
+
+          url = urlsplit(os.environ['EXTRACT_URL'])
+          if url.scheme != 'https' or not url.path.endswith('.osm.pbf') or url.username or url.password:
+              raise SystemExit('extract_url must be an HTTPS .osm.pbf URL')
+          if not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,63}', os.environ['SOURCE_SLUG']):
+              raise SystemExit('source_slug must contain lowercase letters, digits, or hyphens')
+          snapshot = os.environ['SNAPSHOT_AT']
+          if snapshot and datetime.datetime.fromisoformat(snapshot).tzinfo is None:
+              raise SystemExit('snapshot_at must include a timezone')
+          PY
+          started=$SECONDS
+          curl --fail --location --retry 3 --proto '=https' --proto-redir '=https' \
+            --output "$RUNNER_TEMP/road-input.osm.pbf" "$EXTRACT_URL"
+          test -s "$RUNNER_TEMP/road-input.osm.pbf"
+          echo "seconds=$((SECONDS - started))" >> "$GITHUB_OUTPUT"
+          echo "retrieved_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+      - name: Start PostGIS
+        id: postgres
+        shell: bash
+        run: |
+          started=$SECONDS
+          docker compose config --quiet
+          docker compose up -d --wait --wait-timeout 120 postgres
+          echo "seconds=$((SECONDS - started))" >> "$GITHUB_OUTPUT"
+      - name: Apply canonical migrations
+        id: migration
+        shell: bash
+        working-directory: apps/api
+        run: |
+          started=$SECONDS
+          uv run --locked alembic upgrade head
+          echo "seconds=$((SECONDS - started))" >> "$GITHUB_OUTPUT"
+      - name: Import and normalize road data
+        shell: bash
+        working-directory: apps/api
+        env:
+          RETRIEVED_AT: ${{ steps.download.outputs.retrieved_at }}
+        run: |
+          snapshot_args=()
+          if [[ -n "$SNAPSHOT_AT" ]]; then snapshot_args=(--snapshot-at "$SNAPSHOT_AT"); fi
+          uv run --locked python ../../pipelines/roads/import_roads.py import \
+            --input "$RUNNER_TEMP/road-input.osm.pbf" \
+            --source-slug "$SOURCE_SLUG" --source-name "$SOURCE_NAME" \
+            --source-url "$EXTRACT_URL" --retrieved-at "$RETRIEVED_AT" \
+            --timings-json "$RUNNER_TEMP/road-import-timings.json" \
+            "${snapshot_args[@]}"
+      - name: Start Martin
+        id: martin
+        shell: bash
+        run: |
+          started=$SECONDS
+          docker compose up -d --wait --wait-timeout 120 martin
+          for attempt in {1..60}; do
+            if curl --fail --silent "$MARTIN_URL/road_segments" > /dev/null; then
+              echo "seconds=$((SECONDS - started))" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo 'Martin road source did not become ready' >&2
+          exit 1
+      - name: Measure database, quality, and MVT samples
+        working-directory: apps/api
+        run: |
+          mkdir -p "$RUNNER_TEMP/road-benchmark"
+          uv run --locked python ../../pipelines/roads/benchmark.py \
+            --source-slug "$SOURCE_SLUG" --martin-url "$MARTIN_URL" \
+            --input-path "$RUNNER_TEMP/road-input.osm.pbf" \
+            --timings-json "$RUNNER_TEMP/road-import-timings.json" \
+            --download-seconds '${{ steps.download.outputs.seconds }}' \
+            --postgis-seconds '${{ steps.postgres.outputs.seconds }}' \
+            --migration-seconds '${{ steps.migration.outputs.seconds }}' \
+            --martin-seconds '${{ steps.martin.outputs.seconds }}' \
+            --json-out "$RUNNER_TEMP/road-benchmark/benchmark.json" \
+            --markdown-out "$RUNNER_TEMP/road-benchmark/benchmark.md"
+      - name: Publish benchmark summary
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/road-benchmark/benchmark.md" ]; then
+            cat "$RUNNER_TEMP/road-benchmark/benchmark.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Road benchmark stopped before the measurement report was produced.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload reports only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: road-benchmark-report
+          path: ${{ runner.temp }}/road-benchmark/
+          if-no-files-found: warn
+      - name: Diagnostics
+        if: failure()
+        run: |
+          docker compose ps || true
+          docker compose logs postgres martin || true
+      - name: Remove disposable infrastructure
+        if: always()
+        run: docker compose down -v

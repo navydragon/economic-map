@@ -1403,6 +1403,7 @@ Future real schema changes should use migrations rather than editing the bootstr
 
 The first real domain schema is managed by Alembic. For railway import, source attribution, and diagnostics, see [OSM railway ingestion](docs/data/osm-railways.md).
 For the manual real-data benchmark and its metrics, see [Railway performance baseline](docs/architecture/railway-performance.md).
+For major road ingestion and its first manual benchmark, see [OSM major road ingestion](docs/data/osm-roads.md) and [Road performance baseline](docs/architecture/road-performance.md).
 
 ---
 

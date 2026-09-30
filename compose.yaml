@@ -40,6 +40,7 @@ services:
         target: /input
         read_only: true
       - ./pipelines/railways/railways.lua:/config/railways.lua:ro
+      - ./pipelines/roads/roads.lua:/config/roads.lua:ro
     depends_on:
       postgres:
         condition: service_healthy

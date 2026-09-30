@@ -1,0 +1,138 @@
+<?xml version='1.0' encoding='utf-8'?>
+<osm version="0.6" generator="russia-map synthetic road fixture">
+  <node id="1" lat="55.7000" lon="37.5000" version="1" />
+  <node id="2" lat="55.7000" lon="37.6500" version="1" />
+  <node id="3" lat="55.7020" lon="37.5000" version="1" />
+  <node id="4" lat="55.7020" lon="37.6500" version="1" />
+  <node id="5" lat="55.7040" lon="37.5000" version="1" />
+  <node id="6" lat="55.7040" lon="37.6500" version="1" />
+  <node id="7" lat="55.7060" lon="37.5000" version="1" />
+  <node id="8" lat="55.7060" lon="37.6500" version="1" />
+  <node id="9" lat="55.7080" lon="37.5000" version="1" />
+  <node id="10" lat="55.7080" lon="37.6500" version="1" />
+  <node id="11" lat="55.7100" lon="37.5000" version="1" />
+  <node id="12" lat="55.7100" lon="37.6500" version="1" />
+  <node id="13" lat="55.7120" lon="37.5000" version="1" />
+  <node id="14" lat="55.7120" lon="37.6500" version="1" />
+  <node id="15" lat="55.7140" lon="37.5000" version="1" />
+  <node id="16" lat="55.7140" lon="37.6500" version="1" />
+  <node id="17" lat="55.7160" lon="37.5000" version="1" />
+  <node id="18" lat="55.7160" lon="37.6500" version="1" />
+  <node id="19" lat="55.7180" lon="37.5000" version="1" />
+  <node id="20" lat="55.7180" lon="37.6500" version="1" />
+  <node id="21" lat="55.7200" lon="37.5000" version="1" />
+  <node id="22" lat="55.7200" lon="37.6500" version="1" />
+  <node id="23" lat="55.7220" lon="37.5000" version="1" />
+  <node id="24" lat="55.7220" lon="37.6500" version="1" />
+  <node id="25" lat="55.7240" lon="37.5000" version="1" />
+  <node id="26" lat="55.7240" lon="37.6500" version="1" />
+  <node id="27" lat="55.7260" lon="37.5000" version="1" />
+  <node id="28" lat="55.7260" lon="37.6500" version="1" />
+  <node id="29" lat="55.7280" lon="37.5000" version="1" />
+  <node id="30" lat="55.7280" lon="37.6500" version="1" />
+  <way id="100" version="1">
+    <nd ref="1" />
+    <nd ref="2" />
+    <tag k="highway" v="motorway" />
+    <tag k="name" v="Synthetic Motorway" />
+    <tag k="ref" v="M-TEST" />
+    <tag k="surface" v="asphalt" />
+    <tag k="lanes" v="4" />
+    <tag k="maxspeed" v="110" />
+    <tag k="oneway" v="yes" />
+    <tag k="toll" v="no" />
+  </way>
+  <way id="101" version="1">
+    <nd ref="3" />
+    <nd ref="4" />
+    <tag k="highway" v="motorway_link" />
+    <tag k="name" v="Synthetic Motorway Link" />
+    <tag k="lanes" v="1" />
+  </way>
+  <way id="102" version="1">
+    <nd ref="5" />
+    <nd ref="6" />
+    <tag k="highway" v="trunk" />
+    <tag k="name" v="Synthetic Trunk" />
+    <tag k="ref" v="T-TEST" />
+    <tag k="bridge" v="yes" />
+  </way>
+  <way id="103" version="1">
+    <nd ref="7" />
+    <nd ref="8" />
+    <tag k="highway" v="trunk_link" />
+    <tag k="name" v="Synthetic Trunk Link" />
+  </way>
+  <way id="104" version="1">
+    <nd ref="9" />
+    <nd ref="10" />
+    <tag k="highway" v="primary" />
+    <tag k="name" v="Synthetic Primary" />
+    <tag k="surface" v="paved" />
+    <tag k="maxspeed" v="80" />
+  </way>
+  <way id="105" version="1">
+    <nd ref="11" />
+    <nd ref="12" />
+    <tag k="highway" v="primary_link" />
+    <tag k="name" v="Synthetic Primary Link" />
+  </way>
+  <way id="106" version="1">
+    <nd ref="13" />
+    <nd ref="14" />
+    <tag k="highway" v="secondary" />
+    <tag k="name" v="Synthetic Secondary" />
+    <tag k="lanes" v="2" />
+    <tag k="tunnel" v="yes" />
+  </way>
+  <way id="107" version="1">
+    <nd ref="15" />
+    <nd ref="16" />
+    <tag k="highway" v="secondary_link" />
+    <tag k="name" v="Synthetic Secondary Link" />
+  </way>
+  <way id="108" version="1">
+    <nd ref="17" />
+    <nd ref="18" />
+    <tag k="highway" v="tertiary" />
+    <tag k="name" v="Synthetic Tertiary" />
+    <tag k="oneway" v="no" />
+  </way>
+  <way id="109" version="1">
+    <nd ref="19" />
+    <nd ref="20" />
+    <tag k="highway" v="tertiary_link" />
+    <tag k="name" v="Synthetic Tertiary Link" />
+  </way>
+  <way id="110" version="1">
+    <nd ref="21" />
+    <nd ref="22" />
+    <tag k="highway" v="residential" />
+    <tag k="name" v="Excluded Residential" />
+  </way>
+  <way id="111" version="1">
+    <nd ref="23" />
+    <nd ref="24" />
+    <tag k="highway" v="service" />
+    <tag k="name" v="Excluded Service" />
+  </way>
+  <way id="112" version="1">
+    <nd ref="25" />
+    <nd ref="26" />
+    <tag k="highway" v="footway" />
+    <tag k="name" v="Excluded Footway" />
+  </way>
+  <way id="113" version="1">
+    <nd ref="27" />
+    <nd ref="28" />
+    <tag k="highway" v="construction" />
+    <tag k="name" v="Excluded Construction" />
+  </way>
+  <way id="114" version="1">
+    <nd ref="29" />
+    <nd ref="30" />
+    <tag k="highway" v="primary" />
+    <tag k="name" v="Excluded Area" />
+    <tag k="area" v="yes" />
+  </way>
+</osm>

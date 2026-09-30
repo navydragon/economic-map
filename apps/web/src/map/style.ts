@@ -3,6 +3,7 @@ import { config } from '../config'
 
 export const demoSourceId = 'demo-sites'
 export const railwaySourceId = 'railway-segments'
+export const roadSourceId = 'road-segments'
 
 export const style: StyleSpecification = {
   version: 8,
@@ -21,12 +22,52 @@ export const style: StyleSpecification = {
       maxzoom: 14,
       attribution: '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a>',
     },
+    [roadSourceId]: {
+      type: 'vector',
+      tiles: [`${config.tileUrl}/road_segments/{z}/{x}/{y}`],
+      minzoom: 5,
+      maxzoom: 14,
+      attribution: '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a>',
+    },
   },
   layers: [
     {
       id: 'background',
       type: 'background',
       paint: { 'background-color': '#e8edf0' },
+    },
+    {
+      id: 'road-main',
+      type: 'line',
+      source: roadSourceId,
+      'source-layer': 'road_segments',
+      minzoom: 5,
+      maxzoom: 15,
+      filter: ['==', ['get', 'is_link'], false],
+      paint: {
+        'line-color': ['match', ['get', 'road_class'],
+          'motorway', '#ad8260', 'trunk', '#ae8d6d', 'primary', '#a49780',
+          'secondary', '#a6a39a', 'tertiary', '#b0b0ab', '#b0b0ab'],
+        'line-width': ['interpolate', ['linear'], ['zoom'],
+          5, ['match', ['get', 'road_class'], 'motorway', 1.3, 'trunk', 1.1, 0.75],
+          14, ['match', ['get', 'road_class'], 'motorway', 3.2, 'trunk', 2.8,
+            'primary', 2.3, 'secondary', 1.8, 1.4]],
+        'line-opacity': 0.62,
+      },
+    },
+    {
+      id: 'road-link',
+      type: 'line',
+      source: roadSourceId,
+      'source-layer': 'road_segments',
+      minzoom: 10,
+      maxzoom: 15,
+      filter: ['==', ['get', 'is_link'], true],
+      paint: {
+        'line-color': '#ad9988',
+        'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.8, 14, 1.5],
+        'line-opacity': 0.55,
+      },
     },
     {
       id: 'railway-main',

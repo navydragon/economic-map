@@ -27,3 +27,17 @@ Benchmark #4 reran the same Central Federal District PBF (SHA-256 `7ee7793c58c5c
 | z9 | 4,172 → 1,271 | 71,290 → 26,036 | 0.101s → 0.066s |
 
 A follow-up review found that spatial candidate selection used the unbuffered tile envelope while `ST_AsMVTGeom` used a 64-unit buffer. The query envelope must include the same `64 / 4096` margin to retain lines just outside visible tile edges. Benchmark #4 is therefore an intermediate post-filtering result; rerun the benchmark after the buffer fix before treating its measurements as the final railway baseline.
+
+## Final current railway baseline — Benchmark #5
+
+Benchmark #5 used the same Central Federal District PBF (SHA-256 `7ee7793c58c5c9b210837d06706ae73c5152e8120490eb1a5afdd64db4288378`) and 51,712 canonical rows. It measured the zoom-aware function after the query-margin correction:
+
+| Zoom | Features | Wire bytes | Request seconds |
+| --- | ---: | ---: | ---: |
+| z5 | 3,442 | 53,545 | 0.121 |
+| z7 | 2,351 | 42,317 | 0.101 |
+| z9 | 1,462 | 28,881 | 0.039 |
+| z11 | 381 | 8,100 | 0.010 |
+| z13 | 101 | 3,385 | 0.004 |
+
+The original table source on that PBF sent 12,341 features / 144,303 wire bytes / 0.335 s at z5, 8,110 / 113,855 / 0.232 s at z7, and 4,172 / 71,290 / 0.101 s at z9. Server-side semantic filtering solved the measured low-zoom over-delivery; the query margin restored complete buffered geometry. PMTiles and generalized railway tables are not currently justified. These timings are single benchmark requests, not production latency SLOs. The railway performance investigation is closed for this phase.
