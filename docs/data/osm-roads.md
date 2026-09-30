@@ -23,3 +23,9 @@ Use the input file's actual provider URL and retrieval time. Supply `--snapshot-
 A source slug identifies the **current active dataset** for one logical road source. Reimporting a changed extract with the same slug replaces that slug's current coverage; removed ways disappear, and previous metadata is not retained as history. Different slugs containing overlapping extracts may produce duplicate spatial roads. Cross-source geometry deduplication is not part of this milestone. Use distinct road and railway slugs because both domains share `data_sources`.
 
 For a first real-data baseline, run the manual [Road real-data benchmark](../../.github/workflows/road-benchmark.yml). It downloads a PBF into temporary runner storage and uploads only reports.
+
+## Progressive tile detail
+
+Martin continues to publish `/road_segments/{z}/{x}/{y}` with source-layer `road_segments`. Below z5 it returns an empty tile. At z5–z9, eligible non-link roads are collected by `road_class` into presentation geometry. These features expose only `road_class` and `is_link=false`, with no canonical MVT feature ID. They do not correspond one-to-one with canonical road rows. At z10+, each road retains its canonical feature ID and detailed public attributes, including links.
+
+Class thresholds remain motorway/trunk at z5, primary from z6, secondary from z7, and tertiary from z8. Candidate selection uses the indexed SRID 4326 geometry and a `64/4096` query margin; encoding uses the exact tile envelope with extent 4096 and buffer 64. Aggregation uses `ST_Collect` at request time. Canonical geometry, identities, provenance, and import semantics remain unchanged. See [ADR 0008](../adr/0008-low-zoom-road-mvt-aggregation.md).

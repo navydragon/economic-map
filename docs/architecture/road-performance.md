@@ -28,3 +28,19 @@ The North Caucasus source contained 11,422 tertiary, 5,713 secondary, 3,864 prim
 The original representative samples remain valid and are retained for historical comparability. Before benchmarking Central Federal District, the sampler now adds one deterministic density hotspot candidate per zoom. It groups midpoints of roads eligible under that zoom's production visibility rule into XYZ tiles, then chooses the bucket with the most midpoints, breaking ties by smallest x and then y. The candidate midpoint count is a density proxy; actual MVT feature count comes from Martin. Lines may cross tile boundaries, and the MVT function has a buffer, so this is **not** an exhaustive worst-case tile search. If the hotspot and a representative sample name the same tile, the benchmark requests it once and records both roles. The earlier runs have no hotspot measurements, and none are inferred retroactively.
 
 Individual request times are diagnostics, not production latency SLOs. PMTiles, generalized geometry, and simplification remain evidence-driven options; none is introduced in this phase.
+
+## Central Federal District: pre-aggregation baseline
+
+The density-oriented run used [central-fed-district-260928.osm.pbf](https://download.geofabrik.de/russia/central-fed-district-260928.osm.pbf): 878,606,707 PBF bytes, SHA-256 `7ee7793c58c5c9b210837d06706ae73c5152e8120490eb1a5afdd64db4288378`, 174,930 canonical roads, and 75,931,648 database total bytes.
+
+| Zoom | Candidate midpoints | MVT features | Wire bytes | Decoded bytes | Request seconds |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| z5 | 11,936 | 8,689 | 108,620 | 350,466 | 0.599 |
+| z7 | 26,311 | 24,567 | 342,847 | 1,003,314 | 0.754 |
+| z9 | 24,811 | 25,481 | 422,216 | 1,035,531 | 0.743 |
+| z11 | 5,203 | 5,588 | 102,984 | 230,366 | 0.132 |
+| z13 | 719 | 773 | 16,752 | 34,358 | 0.020 |
+
+These density hotspots demonstrate excessive low-zoom feature fragmentation. The first measured response is request-time presentation aggregation by road class at z5–z9 using `ST_Collect`, with only `road_class` and `is_link=false` in each aggregate and no canonical feature ID. Semantic thresholds and buffer handling stay the same. Canonical storage remains unchanged; z10+ detailed per-road delivery remains unchanged. Low-zoom MVT features therefore no longer correspond one-to-one with canonical rows; canonical data is not generalized or merged.
+
+No generalized table, simplification, or PMTiles is justified yet. A second Central FD benchmark on the exact same PBF/SHA, source semantics, and unchanged representative/density hotspot selection will provide the A/B comparison. No post-aggregation real-data result is claimed here. These request times are individual benchmark observations, not production SLOs. The decision is recorded in [ADR 0008](../adr/0008-low-zoom-road-mvt-aggregation.md).

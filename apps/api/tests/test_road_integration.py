@@ -1,11 +1,15 @@
 import math
 import os
 from pathlib import Path
+import runpy
 import subprocess
 import sys
 
 import httpx
 import mapbox_vector_tile
+from mapbox_vector_tile.Mapbox import vector_tile_pb2
+import pytest
+from shapely.geometry import shape
 from sqlalchemy import text
 
 from app.database import get_engine
@@ -50,9 +54,25 @@ def decoded_features(tile: bytes) -> list[dict]:
     return mapbox_vector_tile.decode(tile).get("road_segments", {}).get("features", [])
 
 
+def assert_presentation_tile(tile: bytes) -> list[dict]:
+    raw = vector_tile_pb2.tile()
+    raw.ParseFromString(tile)
+    assert all(layer.name == "road_segments" for layer in raw.layers)
+    assert all(not feature.HasField("id") for layer in raw.layers for feature in layer.features)
+    features = decoded_features(tile)
+    assert len({feature["properties"]["road_class"] for feature in features}) == len(features)
+    for feature in features:
+        assert set(feature["properties"]) == {"road_class", "is_link"}
+        assert feature["properties"]["is_link"] is False
+        geometry = shape(feature["geometry"])
+        assert geometry.geom_type in ("LineString", "MultiLineString")
+        assert geometry.is_valid and not geometry.is_empty
+    return features
+
+
 def test_road_schema_import_normalization_and_isolation() -> None:
     with get_engine().connect() as connection:
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0004_road_domain"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0005_road_mvt_aggregation"
         source = connection.execute(text("""
             SELECT id, publisher, license, url FROM public.data_sources WHERE slug = :slug
         """), {"slug": SOURCE_SLUG}).one()
@@ -116,6 +136,9 @@ def test_martin_serves_road_zoom_hierarchy() -> None:
         assert len(way_to_id) == 10
         empty = connection.scalar(text("SELECT public.road_segments_mvt(4, 8, 5)"))
         assert empty == b"" and decoded_features(empty) == []
+    empty_response = httpx.get(f"{MARTIN_URL}/road_segments/4/8/5", timeout=10)
+    assert empty_response.status_code in (200, 204)
+    assert decoded_features(empty_response.content) == []
 
     expected_by_zoom = {
         5: {100, 102},
@@ -124,17 +147,32 @@ def test_martin_serves_road_zoom_hierarchy() -> None:
         8: {100, 102, 104, 106, 108},
         9: {100, 102, 104, 106, 108},
         10: set(EXPECTED_WAY_IDS),
+        11: set(EXPECTED_WAY_IDS),
+        13: set(EXPECTED_WAY_IDS),
     }
     for zoom, expected_ways in expected_by_zoom.items():
         features_by_id = {}
+        visible_classes = set()
         for x, y in fixture_tiles(zoom):
             response = httpx.get(
                 f"{MARTIN_URL}/road_segments/{zoom}/{x}/{y}",
                 headers={"Accept": "application/x-protobuf"}, timeout=10,
             )
             assert response.status_code in (200, 204)
+            if zoom < 10:
+                features = assert_presentation_tile(response.content)
+                visible_classes.update(feature["properties"]["road_class"] for feature in features)
+                continue
+            raw = vector_tile_pb2.tile()
+            raw.ParseFromString(response.content)
+            assert all(layer.name == "road_segments" for layer in raw.layers)
+            assert all(feature.HasField("id") for layer in raw.layers for feature in layer.features)
             for feature in decoded_features(response.content):
                 features_by_id[feature["id"]] = feature
+        if zoom < 10:
+            classes = ("motorway", "trunk", "primary", "secondary", "tertiary")
+            assert visible_classes == {classes[(way - 100) // 2] for way in expected_ways}
+            continue
         assert set(features_by_id) == {way_to_id[way_id] for way_id in expected_ways}
         assert all(feature["geometry"]["type"] == "LineString"
                    for feature in features_by_id.values())
@@ -143,6 +181,11 @@ def test_martin_serves_road_zoom_hierarchy() -> None:
         assert all(feature["properties"]["is_link"] == (way_id % 2 == 1)
                    for way_id in expected_ways
                    for feature in [features_by_id[way_to_id[way_id]]])
+        motorway = features_by_id[way_to_id[100]]["properties"]
+        assert motorway["name"] == "Synthetic Motorway"
+        assert {key: motorway[key] for key in ("ref", "surface", "lanes", "maxspeed", "oneway", "toll")} == {
+            "ref": "M-TEST", "surface": "asphalt", "lanes": "4", "maxspeed": "110", "oneway": "yes", "toll": "no",
+        }
     with get_engine().connect() as connection:
         assert connection.scalar(text("SELECT count(*) FROM public.road_segments")) == 10
 
@@ -197,8 +240,9 @@ def test_road_reimport_updates_attributes_and_removes_missing_ways() -> None:
     assert rows[0].name == "Synthetic Motorway"
 
 
-def test_road_mvt_respects_tile_buffer() -> None:
-    zoom, x, y = 11, 1200, 700
+@pytest.mark.parametrize("zoom", [7, 11])
+def test_road_mvt_respects_tile_buffer(zoom: int) -> None:
+    x, y = tile_coordinates(-90, 30, zoom)
     insert_sql = text("""
         WITH bounds AS (SELECT ST_TileEnvelope(:z, :x, :y) AS tile)
         INSERT INTO public.road_segments
@@ -240,8 +284,85 @@ def test_road_mvt_respects_tile_buffer() -> None:
             tile = connection.scalar(text("""
                 SELECT public.road_segments_mvt(:z, :x, :y)
             """), params)
-            features = {feature["id"]: feature for feature in decoded_features(tile)}
-            assert near_id in features and far_id not in features
-            assert features[near_id]["geometry"]["type"] == "LineString"
+            if zoom < 10:
+                features = assert_presentation_tile(tile)
+                assert len(features) == 1
+                assert features[0]["properties"]["road_class"] == "primary"
+                geometry = shape(features[0]["geometry"])
+                assert geometry.bounds[0] == geometry.bounds[2] == -32
+                connection.execute(text("DELETE FROM public.road_segments WHERE id = :id"), {"id": near_id})
+                assert decoded_features(connection.scalar(text(
+                    "SELECT public.road_segments_mvt(:z, :x, :y)"
+                ), params)) == []
+            else:
+                features = {feature["id"]: feature for feature in decoded_features(tile)}
+                assert near_id in features and far_id not in features
+                assert features[near_id]["geometry"]["type"] == "LineString"
+        finally:
+            transaction.rollback()
+
+
+def test_low_zoom_aggregation_empty_single_and_multiple_segments() -> None:
+    params = {"z": 7, "x": 32, "y": 48, "slug": SOURCE_SLUG}
+    tile_sql = text("SELECT public.road_segments_mvt(:z, :x, :y)")
+    with get_engine().connect() as connection:
+        transaction = connection.begin()
+        try:
+            assert decoded_features(connection.scalar(tile_sql, params)) == []
+            insert_sql = text("""
+                WITH bounds AS (SELECT ST_TileEnvelope(:z, :x, :y) AS tile)
+                INSERT INTO public.road_segments
+                    (source_id, source_object_type, source_object_id, road_class, is_link, name, geom)
+                SELECT (SELECT id FROM public.data_sources WHERE slug = :slug),
+                    'way', :object_id, 'motorway', false, 'Synthetic aggregate member',
+                    ST_Transform(ST_MakeLine(
+                        ST_SetSRID(ST_MakePoint(
+                            ST_XMin(tile) + (ST_XMax(tile) - ST_XMin(tile)) * 0.2,
+                            ST_YMin(tile) + (ST_YMax(tile) - ST_YMin(tile)) * :position), 3857),
+                        ST_SetSRID(ST_MakePoint(
+                            ST_XMin(tile) + (ST_XMax(tile) - ST_XMin(tile)) * 0.8,
+                            ST_YMin(tile) + (ST_YMax(tile) - ST_YMin(tile)) * :position), 3857)
+                    ), 4326)
+                FROM bounds RETURNING id
+            """)
+            first = connection.scalar(insert_sql, {**params, "object_id": -10, "position": 0.4})
+            single = assert_presentation_tile(connection.scalar(tile_sql, params))
+            assert len(single) == 1 and single[0]["properties"]["road_class"] == "motorway"
+            second = connection.scalar(insert_sql, {**params, "object_id": -11, "position": 0.6})
+            multiple = assert_presentation_tile(connection.scalar(tile_sql, params))
+            assert len(multiple) == 1 < 2
+            assert multiple[0]["geometry"]["type"] == "MultiLineString"
+            assert len(multiple[0]["geometry"]["coordinates"]) == 2
+            assert connection.scalar(text("SELECT count(*) FROM public.road_segments WHERE id IN (:a, :b)"),
+                                     {"a": first, "b": second}) == 2
+            connection.execute(text("UPDATE public.road_segments SET is_link = true WHERE id IN (:a, :b)"),
+                               {"a": first, "b": second})
+            assert decoded_features(connection.scalar(tile_sql, params)) == []
+        finally:
+            transaction.rollback()
+
+
+def test_road_aggregation_migration_roundtrip_preserves_detail(monkeypatch) -> None:
+    migration = runpy.run_path(str(Path(__file__).resolve().parents[1]
+                                  / "alembic/versions/0005_road_mvt_aggregation.py"))
+    with get_engine().connect() as connection:
+        transaction = connection.begin()
+        try:
+            monkeypatch.setattr(migration["op"], "execute", connection.exec_driver_sql)
+            snapshot_sql = text("SELECT row_to_json(r)::text FROM public.road_segments r ORDER BY id")
+            canonical = connection.execute(snapshot_sql).scalars().all()
+            tile_sql = text("SELECT public.road_segments_mvt(:z, :x, :y)")
+            params = [{"z": z, "x": x, "y": y} for z in (10, 11, 13) for x, y in fixture_tiles(z)]
+            detailed_before = [connection.scalar(tile_sql, p) for p in params]
+            migration["downgrade"]()
+            assert [connection.scalar(tile_sql, p) for p in params] == detailed_before
+            x, y = fixture_tiles(7)[0]
+            previous_low = decoded_features(connection.scalar(tile_sql, {"z": 7, "x": x, "y": y}))
+            assert previous_low and all(feature["id"] > 0 and "name" in feature["properties"]
+                                        for feature in previous_low)
+            migration["upgrade"]()
+            assert [connection.scalar(tile_sql, p) for p in params] == detailed_before
+            assert_presentation_tile(connection.scalar(tile_sql, {"z": 7, "x": x, "y": y}))
+            assert connection.execute(snapshot_sql).scalars().all() == canonical
         finally:
             transaction.rollback()
