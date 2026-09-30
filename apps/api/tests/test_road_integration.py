@@ -137,8 +137,9 @@ def test_martin_serves_road_zoom_hierarchy() -> None:
         empty = connection.scalar(text("SELECT public.road_segments_mvt(4, 8, 5)"))
         assert empty == b"" and decoded_features(empty) == []
     empty_response = httpx.get(f"{MARTIN_URL}/road_segments/4/8/5", timeout=10)
-    assert empty_response.status_code in (200, 204)
-    assert decoded_features(empty_response.content) == []
+    # Martin enforces TileJSON minzoom before calling the function; its z4
+    # empty-MVT contract is checked directly above.
+    assert empty_response.status_code == 404
 
     expected_by_zoom = {
         5: {100, 102},
