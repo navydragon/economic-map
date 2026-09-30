@@ -7,17 +7,17 @@ on:
         description: HTTPS URL of a compatible .osm.pbf extract
         type: string
         required: true
-        default: https://download.geofabrik.de/russia/kaliningrad-latest.osm.pbf
+        default: https://download.geofabrik.de/russia/kaliningrad-260928.osm.pbf
       source_slug:
         description: Logical source slug for this isolated run
         type: string
         required: true
-        default: osm-kaliningrad-roads-benchmark
+        default: osm-kaliningrad-roads-benchmark-260928
       source_name:
         description: Human-readable source name
         type: string
         required: true
-        default: OSM Kaliningrad major roads benchmark extract
+        default: OSM Kaliningrad major roads benchmark snapshot 2026-09-28
       snapshot_at:
         description: Optional source-reported ISO 8601 snapshot timestamp with timezone
         type: string

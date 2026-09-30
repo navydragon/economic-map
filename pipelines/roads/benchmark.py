@@ -18,6 +18,67 @@ from import_roads import database_url
 
 
 ZOOMS = (5, 7, 9, 11, 13)
+ROAD_CLASSES = ("motorway", "trunk", "primary", "secondary", "tertiary")
+MERCATOR_ORIGIN = 20037508.342789244
+
+# The projected_midpoints CTE is supplied by density_hotspot. Keeping bucket
+# aggregation separate also lets unit tests run the exact ranking SQL on small
+# synthetic projected points without PostGIS or a downloaded extract.
+HOTSPOT_BUCKET_SQL = """
+, buckets AS (
+    SELECT CAST(LEAST(:max_tile, GREATEST(0,
+        FLOOR((mercator_x + :origin) / :world_width * :world))) AS integer) AS x,
+           CAST(LEAST(:max_tile, GREATEST(0,
+        FLOOR((:origin - mercator_y) / :world_width * :world))) AS integer) AS y
+    FROM projected_midpoints
+)
+SELECT x, y, count(*) AS candidate_midpoint_count
+FROM buckets
+GROUP BY x, y
+ORDER BY candidate_midpoint_count DESC, x ASC, y ASC
+LIMIT 1
+"""
+
+
+def eligible_road_classes(zoom: int) -> tuple[tuple[str, ...], bool]:
+    """Mirror the road MVT's semantic visibility for midpoint candidates."""
+    if zoom < 5:
+        return (), False
+    if zoom >= 10:
+        return ROAD_CLASSES, True
+    count = 2 + (zoom >= 6) + (zoom >= 7) + (zoom >= 8)
+    return ROAD_CLASSES[:count], False
+
+
+def density_hotspot(connection, source_id: int, zoom: int) -> dict | None:
+    classes, include_links = eligible_road_classes(zoom)
+    if not classes:
+        return None
+    row = connection.execute(text("""
+        WITH midpoints AS (
+            SELECT ST_LineInterpolatePoint(geom, 0.5) AS point
+            FROM public.road_segments
+            WHERE source_id = :source_id
+              AND road_class = ANY(:eligible_classes)
+              AND (:include_links OR NOT is_link)
+        ), projected_midpoints AS (
+            SELECT ST_X(projected) AS mercator_x,
+                   ST_Y(projected) AS mercator_y
+            FROM (
+                SELECT ST_Transform(ST_SetSRID(ST_MakePoint(
+                    ST_X(point),
+                    LEAST(85.05112878, GREATEST(-85.05112878, ST_Y(point)))
+                ), 4326), 3857) AS projected
+                FROM midpoints
+            ) AS clamped
+        )
+    """ + HOTSPOT_BUCKET_SQL), {
+        "source_id": source_id, "eligible_classes": list(classes),
+        "include_links": include_links, "world": 2**zoom,
+        "max_tile": 2**zoom - 1, "origin": MERCATOR_ORIGIN,
+        "world_width": 2 * MERCATOR_ORIGIN,
+    }).mappings().one_or_none()
+    return dict(row) if row else None
 
 
 def distribution(connection, source_id: int, column: str) -> dict[str, int]:
@@ -30,7 +91,7 @@ def distribution(connection, source_id: int, column: str) -> dict[str, int]:
     return {row.value: row.count for row in rows}
 
 
-def collect_database(source_slug: str) -> tuple[dict, dict, list[tuple[float, float]]]:
+def collect_database(source_slug: str) -> tuple[dict, dict, list[tuple[float, float]], dict[int, dict]]:
     engine = create_engine(database_url())
     with engine.connect() as connection:
         source = connection.execute(text("""
@@ -92,6 +153,11 @@ def collect_database(source_slug: str) -> tuple[dict, dict, list[tuple[float, fl
             WHERE row_number IN (1, (total_rows + 1) / 2, total_rows)
             ORDER BY row_number
         """), {"source_id": source_id}).all()
+        hotspots = {zoom: hotspot for zoom in ZOOMS
+                    if (hotspot := density_hotspot(connection, source_id, zoom)) is not None}
+        if len(hotspots) != len(ZOOMS):
+            missing = sorted(set(ZOOMS) - hotspots.keys())
+            raise ValueError(f"No eligible road midpoint for density hotspot at zooms {missing}")
         database = {
             "staging_rows": staging_rows,
             "canonical_rows": counts["canonical_rows"],
@@ -122,7 +188,8 @@ def collect_database(source_slug: str) -> tuple[dict, dict, list[tuple[float, fl
             "unexpected_srid": counts["unexpected_srid"],
         }
     engine.dispose()
-    return dataset, {"database": database, "data_quality": quality}, [(r.lon, r.lat) for r in sample_rows]
+    return (dataset, {"database": database, "data_quality": quality},
+            [(r.lon, r.lat) for r in sample_rows], hotspots)
 
 
 def tile_coordinates(lon: float, lat: float, zoom: int) -> tuple[int, int]:
@@ -133,40 +200,58 @@ def tile_coordinates(lon: float, lat: float, zoom: int) -> tuple[int, int]:
     return max(0, min(world - 1, x)), max(0, min(world - 1, y))
 
 
-def sample_tiles(martin_url: str, locations: list[tuple[float, float]]) -> list[dict]:
+def sample_plan(locations: list[tuple[float, float]], hotspots: dict[int, dict]) -> list[dict]:
+    """Produce one measurement per unique tile while preserving both roles."""
+    plan = []
+    for zoom in ZOOMS:
+        coordinates = sorted({tile_coordinates(lon, lat, zoom) for lon, lat in locations})
+        by_tile = {(x, y): {"z": zoom, "x": x, "y": y,
+                            "sample_kinds": ["representative"]} for x, y in coordinates}
+        hotspot = hotspots.get(zoom)
+        if hotspot:
+            key = (hotspot["x"], hotspot["y"])
+            sample = by_tile.setdefault(key, {"z": zoom, "x": key[0], "y": key[1],
+                                              "sample_kinds": []})
+            sample["sample_kinds"].append("density_hotspot")
+            sample["candidate_midpoint_count"] = hotspot["candidate_midpoint_count"]
+        plan.extend(by_tile[key] for key in sorted(by_tile))
+    return plan
+
+
+def sample_tiles(martin_url: str, locations: list[tuple[float, float]],
+                 hotspots: dict[int, dict]) -> list[dict]:
     samples = []
     with httpx.Client(timeout=30, headers={
         "Accept": "application/x-protobuf", "Accept-Encoding": "gzip",
     }) as client:
-        for zoom in ZOOMS:
-            coordinates = sorted({tile_coordinates(lon, lat, zoom) for lon, lat in locations})
-            for x, y in coordinates:
-                started = time.perf_counter()
-                sample = {"z": zoom, "x": x, "y": y, "http_status": None,
-                          "wire_bytes": None, "decoded_payload_bytes": None,
-                          "content_encoding": None, "feature_count": None,
-                          "decode_error": None}
-                try:
-                    response = client.get(f"{martin_url.rstrip('/')}/road_segments/{zoom}/{x}/{y}")
-                    sample.update({
-                        "http_status": response.status_code,
-                        "wire_bytes": response.num_bytes_downloaded,
-                        "decoded_payload_bytes": len(response.content),
-                        "content_encoding": response.headers.get("content-encoding"),
-                        "feature_count": 0,
-                    })
-                    if response.status_code == 200 and response.content:
-                        try:
-                            decoded = mapbox_vector_tile.decode(response.content)
-                            sample["feature_count"] = len(
-                                decoded.get("road_segments", {}).get("features", [])
-                            )
-                        except (DecodeError, ValueError) as error:
-                            sample["decode_error"] = str(error)
-                except httpx.RequestError as error:
-                    sample["error"] = str(error)
-                sample["request_seconds"] = round(time.perf_counter() - started, 3)
-                samples.append(sample)
+        for planned in sample_plan(locations, hotspots):
+            zoom, x, y = planned["z"], planned["x"], planned["y"]
+            started = time.perf_counter()
+            sample = {**planned, "http_status": None,
+                      "wire_bytes": None, "decoded_payload_bytes": None,
+                      "content_encoding": None, "feature_count": None,
+                      "decode_error": None}
+            try:
+                response = client.get(f"{martin_url.rstrip('/')}/road_segments/{zoom}/{x}/{y}")
+                sample.update({
+                    "http_status": response.status_code,
+                    "wire_bytes": response.num_bytes_downloaded,
+                    "decoded_payload_bytes": len(response.content),
+                    "content_encoding": response.headers.get("content-encoding"),
+                    "feature_count": 0,
+                })
+                if response.status_code == 200 and response.content:
+                    try:
+                        decoded = mapbox_vector_tile.decode(response.content)
+                        sample["feature_count"] = len(
+                            decoded.get("road_segments", {}).get("features", [])
+                        )
+                    except (DecodeError, ValueError) as error:
+                        sample["decode_error"] = str(error)
+            except httpx.RequestError as error:
+                sample["error"] = str(error)
+            sample["request_seconds"] = round(time.perf_counter() - started, 3)
+            samples.append(sample)
     return samples
 
 
@@ -211,12 +296,14 @@ def markdown(report: dict) -> str:
         lines.append(f"| {name} | {json.dumps(value, ensure_ascii=False).replace('|', '/')} |")
     lines += [
         "", "## Tile samples", "",
-        "| z/x/y | HTTP | Wire bytes | Decoded payload bytes | Features | Seconds | Decode error | Error |",
-        "|---|---:|---:|---:|---:|---:|---|---|",
+        "| z/x/y | Sample kinds | Candidate midpoints | HTTP | Wire bytes | Decoded payload bytes | Features | Seconds | Decode error | Error |",
+        "|---|---|---:|---:|---:|---:|---:|---:|---|---|",
     ]
     for tile in report["tile_samples"]:
         lines.append(
-            f"| {tile['z']}/{tile['x']}/{tile['y']} | {tile['http_status']} | "
+            f"| {tile['z']}/{tile['x']}/{tile['y']} | "
+            f"{', '.join(kind.replace('_', ' ') for kind in tile['sample_kinds'])} | "
+            f"{tile.get('candidate_midpoint_count', '—')} | {tile['http_status']} | "
             f"{tile['wire_bytes']} | {tile['decoded_payload_bytes']} | "
             f"{tile['feature_count']} | {tile['request_seconds']} | "
             f"{(tile.get('decode_error') or '').replace('|', '/')} | "
@@ -224,7 +311,10 @@ def markdown(report: dict) -> str:
         )
     lines += [
         "", "## Observations", "",
-        "- Samples use points on the imported road geometry at z5, z7, z9, z11, and z13.",
+        "- Representative samples retain the first, median, and last spatially ordered road midpoints for historical comparability.",
+        "- Density hotspot samples intentionally probe dense road areas using eligible segment midpoints per tile; they are not an exhaustive worst-case search. A line may cross tile boundaries, and MVT queries include a buffer.",
+        "- A tile with both sample kinds is requested and measured once; candidate midpoint count is a proxy, while decoded MVT feature count is the actual response.",
+        "- Individual request times are not production latency SLOs.",
         "- No further optimization is selected from this benchmark alone.",
         "- Relation sizes cover the full table; source counts and quality cover the selected slug.",
     ]
@@ -245,7 +335,7 @@ def main() -> None:
     parser.add_argument("--markdown-out", type=Path, default=Path("benchmark.md"))
     args = parser.parse_args()
 
-    dataset, measurements, locations = collect_database(args.source_slug)
+    dataset, measurements, locations, hotspots = collect_database(args.source_slug)
     if args.input_path:
         dataset.update(file_facts(args.input_path))
     import_timings = json.loads(args.timings_json.read_text(encoding="utf-8")) if args.timings_json else {}
@@ -261,7 +351,7 @@ def main() -> None:
         "measured_at": datetime.now(timezone.utc).isoformat(),
         "dataset": dataset, "timing_seconds": timing,
         **measurements,
-        "tile_samples": sample_tiles(args.martin_url, locations),
+        "tile_samples": sample_tiles(args.martin_url, locations, hotspots),
     }
     args.json_out.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     args.markdown_out.write_text(markdown(report), encoding="utf-8")
