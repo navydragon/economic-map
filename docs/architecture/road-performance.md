@@ -43,4 +43,28 @@ The density-oriented run used [central-fed-district-260928.osm.pbf](https://down
 
 These density hotspots demonstrate excessive low-zoom feature fragmentation. The first measured response is request-time presentation aggregation by road class at z5–z9 using `ST_Collect`, with only `road_class` and `is_link=false` in each aggregate and no canonical feature ID. Semantic thresholds and buffer handling stay the same. Canonical storage remains unchanged; z10+ detailed per-road delivery remains unchanged. Low-zoom MVT features therefore no longer correspond one-to-one with canonical rows; canonical data is not generalized or merged.
 
-No generalized table, simplification, or PMTiles is justified yet. A second Central FD benchmark on the exact same PBF/SHA, source semantics, and unchanged representative/density hotspot selection will provide the A/B comparison. No post-aggregation real-data result is claimed here. These request times are individual benchmark observations, not production SLOs. The decision is recorded in [ADR 0008](../adr/0008-low-zoom-road-mvt-aggregation.md).
+The decision is recorded in [ADR 0008](../adr/0008-low-zoom-road-mvt-aggregation.md).
+
+## Central Federal District: post-aggregation A/B result
+
+The second run used the same [central-fed-district-260928.osm.pbf](https://download.geofabrik.de/russia/central-fed-district-260928.osm.pbf): 878,606,707 bytes, SHA-256 `7ee7793c58c5c9b210837d06706ae73c5152e8120490eb1a5afdd64db4288378`, and 174,930 canonical roads. The unchanged density-hotspot sampler chose the same midpoint counts at each zoom, enabling comparison with the preceding baseline.
+
+| Zoom | Candidate midpoints | MVT features | Wire bytes | Decoded bytes | Request seconds |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| z5 | 11,936 | 2 | 40,618 | 94,531 | 0.179 |
+| z7 | 26,311 | 4 | 121,693 | 252,069 | 0.319 |
+| z9 | 24,811 | 5 | 182,424 | 286,945 | 0.270 |
+| z11 | 5,203 | 5,588 | 100,438 | 231,037 | 0.152 |
+| z13 | 719 | 773 | 16,782 | 34,358 | 0.020 |
+
+Relative to the pre-aggregation density hotspots:
+
+| Zoom | MVT features | Wire bytes | Decoded bytes | Single-request time |
+| --- | ---: | ---: | ---: | ---: |
+| z5 | −99.98% | −62.6% | −73.0% | −70.1% |
+| z7 | −99.98% | −64.5% | −74.9% | −57.7% |
+| z9 | −99.98% | −56.8% | −72.3% | −63.7% |
+
+At z11 and z13, feature counts remain 5,588 and 773. Their small payload and timing differences are run-to-run diagnostic variation; individual request times are not production latency SLOs.
+
+Low-zoom road feature fragmentation is resolved for the tested regional scale. Retain road-class presentation aggregation at z5–z9 and individual canonical road delivery at z10+; canonical storage remains unchanged. ST_Simplify, generalized tables, materialized views, PMTiles, Redis, and pre-generated road tiles are not justified now. The dense z9 geometry payload remains a future performance watchpoint, especially for whole-Russia testing, but is not a blocker. **Road Phase 2D is closed for the current regional scale.**
