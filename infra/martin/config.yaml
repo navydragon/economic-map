@@ -16,18 +16,7 @@ postgres:
         name: text
         category: text
         value: int4
+  functions:
     railway_segments:
       schema: public
-      table: railway_segments
-      srid: 4326
-      geometry_column: geom
-      id_column: id
-      properties:
-        name: text
-        ref: text
-        railway_type: text
-        usage: text
-        service: text
-        operator: text
-        electrified: text
-        gauge: text
+      function: railway_segments_mvt(integer, integer, integer)
