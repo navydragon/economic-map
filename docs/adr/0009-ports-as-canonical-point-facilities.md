@@ -15,3 +15,7 @@ Import only explicit port semantics through dedicated osm2pgsql Flex staging. Pr
 ## Consequences
 
 Point delivery is compact and can support future graph or flow endpoints without browser GeoJSON. A canonical point does not preserve the full port footprint. Distinct OSM objects or overlapping source slugs may represent the same real-world facility; they remain distinct until an explicit entity resolution phase. Official registry enrichment, throughput statistics, commodity specialization, hierarchy, footprints, berths, shipping routes, and AIS are deferred.
+
+## Measured validation
+
+Fixed 2026-09-28 OSM extracts produced 4 canonical ports in Kaliningrad and 84 in the Northwestern Federal District, with zero reported geometry or identity quality errors. The Northwestern staging and canonical counts both equal 84. Its sampled density-hotspot tiles carried 8–35 Point features and 406–1,244 wire bytes at z5, z7, z9, z11, and z13. Individual request times are diagnostics, not SLOs. The [full measurements and limits](../architecture/port-performance.md) support retaining the explicit filter and point MVT delivery without clustering, aggregation, generalized tables, PMTiles, or a cache. Generic `port` remains a quality watchpoint, while unnamed facilities remain visible from z7 and unknown water context remains unknown. Entity resolution and official registry enrichment remain deferred. Phase 2E is closed for the tested regional scale.
