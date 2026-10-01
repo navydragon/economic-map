@@ -1,125 +1,125 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <osm version="0.6" generator="russia-map synthetic port fixture">
-  <node id="1" lat="55.7000" lon="37.5000" version="1"/>
-  <node id="2" lat="55.7000" lon="37.5400" version="1"/>
-  <node id="3" lat="55.7400" lon="37.5400" version="1"/>
-  <node id="4" lat="55.7400" lon="37.5300" version="1"/>
-  <node id="5" lat="55.7100" lon="37.5300" version="1"/>
-  <node id="6" lat="55.7100" lon="37.5100" version="1"/>
-  <node id="7" lat="55.7400" lon="37.5100" version="1"/>
-  <node id="8" lat="55.7400" lon="37.5000" version="1"/>
-  <node id="9" lat="55.7000" lon="37.5500" version="1"/>
-  <node id="10" lat="55.7000" lon="37.5700" version="1"/>
-  <node id="11" lat="55.7200" lon="37.5700" version="1"/>
-  <node id="12" lat="55.7200" lon="37.5500" version="1"/>
-  <node id="13" lat="55.7000" lon="37.5800" version="1"/>
-  <node id="14" lat="55.7000" lon="37.6000" version="1"/>
-  <node id="15" lat="55.7200" lon="37.6000" version="1"/>
-  <node id="16" lat="55.7200" lon="37.5800" version="1"/>
+  <node id="1" lat="55.7000" lon="37.5000" version="1" />
+  <node id="2" lat="55.7000" lon="37.5400" version="1" />
+  <node id="3" lat="55.7400" lon="37.5400" version="1" />
+  <node id="4" lat="55.7400" lon="37.5300" version="1" />
+  <node id="5" lat="55.7100" lon="37.5300" version="1" />
+  <node id="6" lat="55.7100" lon="37.5100" version="1" />
+  <node id="7" lat="55.7400" lon="37.5100" version="1" />
+  <node id="8" lat="55.7400" lon="37.5000" version="1" />
+  <node id="9" lat="55.7000" lon="37.5500" version="1" />
+  <node id="10" lat="55.7000" lon="37.5700" version="1" />
+  <node id="11" lat="55.7200" lon="37.5700" version="1" />
+  <node id="12" lat="55.7200" lon="37.5500" version="1" />
+  <node id="13" lat="55.7000" lon="37.5800" version="1" />
+  <node id="14" lat="55.7000" lon="37.6000" version="1" />
+  <node id="15" lat="55.7200" lon="37.6000" version="1" />
+  <node id="16" lat="55.7200" lon="37.5800" version="1" />
   <node id="100" lat="55.7300" lon="37.6200" version="1">
-    <tag k="harbour" v="yes"/>
-    <tag k="industrial" v="port"/>
-    <tag k="name" v="Synthetic Trade Harbour"/>
-    <tag k="name:en" v="Synthetic Trade Harbour"/>
-    <tag k="operator" v="Fixture Port Operator"/>
-    <tag k="website" v="https://example.invalid/port"/>
+    <tag k="harbour" v="yes" />
+    <tag k="industrial" v="port" />
+    <tag k="name" v="Synthetic Trade Harbour" />
+    <tag k="name:en" v="Synthetic Trade Harbour" />
+    <tag k="operator" v="Fixture Port Operator" />
+    <tag k="website" v="https://example.invalid/port" />
   </node>
   <node id="101" lat="55.7310" lon="37.6210" version="1">
-    <tag k="harbour" v="yes"/>
+    <tag k="harbour" v="yes" />
   </node>
   <node id="102" lat="55.7320" lon="37.6220" version="1">
-    <tag k="port" v="fishing"/>
-    <tag k="name" v="Synthetic Fishing Harbour"/>
+    <tag k="port" v="fishing" />
+    <tag k="name" v="Synthetic Fishing Harbour" />
   </node>
   <node id="103" lat="55.7330" lon="37.6230" version="1">
-    <tag k="port" v="cargo"/>
-    <tag k="name" v="Synthetic Cargo Node"/>
-    <tag k="cargo" v="container"/>
-    <tag k="access" v="yes"/>
-  </node>
-  <node id="200" lat="55.7340" lon="37.6240" version="1">
-    <tag k="harbour" v="yes"/>
-    <tag k="name" v="Synthetic Separate Node"/>
+    <tag k="port" v="cargo" />
+    <tag k="name" v="Synthetic Cargo Node" />
+    <tag k="cargo" v="container" />
+    <tag k="access" v="yes" />
   </node>
   <node id="110" lat="55.7350" lon="37.6250" version="1">
-    <tag k="harbour" v="yes"/>
-    <tag k="leisure" v="marina"/>
-    <tag k="name" v="Synthetic Leisure Marina"/>
+    <tag k="harbour" v="yes" />
+    <tag k="leisure" v="marina" />
+    <tag k="name" v="Synthetic Leisure Marina" />
   </node>
   <node id="111" lat="55.7360" lon="37.6260" version="1">
-    <tag k="harbour" v="yes"/>
-    <tag k="amenity" v="ferry_terminal"/>
-    <tag k="name" v="Synthetic Passenger Ferry"/>
+    <tag k="harbour" v="yes" />
+    <tag k="amenity" v="ferry_terminal" />
+    <tag k="name" v="Synthetic Passenger Ferry" />
   </node>
   <node id="112" lat="55.7370" lon="37.6270" version="1">
-    <tag k="man_made" v="pier"/>
-    <tag k="name" v="Synthetic Generic Pier"/>
+    <tag k="man_made" v="pier" />
+    <tag k="name" v="Synthetic Generic Pier" />
   </node>
   <node id="113" lat="55.7380" lon="37.6280" version="1">
-    <tag k="industrial" v="port"/>
-    <tag k="military" v="naval_base"/>
-    <tag k="name" v="Synthetic Excluded Facility"/>
+    <tag k="industrial" v="port" />
+    <tag k="military" v="naval_base" />
+    <tag k="name" v="Synthetic Excluded Facility" />
   </node>
   <node id="114" lat="55.7390" lon="37.6290" version="1">
-    <tag k="harbour" v="yes"/>
-    <tag k="disused" v="yes"/>
-    <tag k="name" v="Synthetic Disused Port"/>
+    <tag k="harbour" v="yes" />
+    <tag k="disused" v="yes" />
+    <tag k="name" v="Synthetic Disused Port" />
   </node>
   <node id="115" lat="55.7400" lon="37.6300" version="1">
-    <tag k="landuse" v="port"/>
-    <tag k="construction" v="yes"/>
-    <tag k="name" v="Synthetic Construction Port"/>
+    <tag k="landuse" v="port" />
+    <tag k="construction" v="yes" />
+    <tag k="name" v="Synthetic Construction Port" />
   </node>
   <node id="116" lat="55.7410" lon="37.6310" version="1">
-    <tag k="harbour" v="yes"/>
-    <tag k="razed:harbour" v="yes"/>
-    <tag k="name" v="Synthetic Razed Port"/>
+    <tag k="harbour" v="yes" />
+    <tag k="razed:harbour" v="yes" />
+    <tag k="name" v="Synthetic Razed Port" />
   </node>
   <node id="117" lat="55.7420" lon="37.6320" version="1">
-    <tag k="seamark:type" v="harbour"/>
-    <tag k="seamark:harbour:category" v="marina"/>
-    <tag k="name" v="Synthetic Yacht Harbour"/>
+    <tag k="seamark:type" v="harbour" />
+    <tag k="seamark:harbour:category" v="marina" />
+    <tag k="name" v="Synthetic Yacht Harbour" />
+  </node>
+  <node id="200" lat="55.7340" lon="37.6240" version="1">
+    <tag k="harbour" v="yes" />
+    <tag k="name" v="Synthetic Separate Node" />
   </node>
   <way id="200" version="1">
-    <nd ref="1"/>
-    <nd ref="2"/>
-    <nd ref="3"/>
-    <nd ref="4"/>
-    <nd ref="5"/>
-    <nd ref="6"/>
-    <nd ref="7"/>
-    <nd ref="8"/>
-    <nd ref="1"/>
-    <tag k="landuse" v="industrial"/>
-    <tag k="industrial" v="port"/>
-    <tag k="port" v="cargo"/>
-    <tag k="name" v="Synthetic Concave Cargo Port"/>
-    <tag k="cargo" v="dry_bulk"/>
-    <tag k="owner" v="Fixture Owner"/>
+    <nd ref="1" />
+    <nd ref="2" />
+    <nd ref="3" />
+    <nd ref="4" />
+    <nd ref="5" />
+    <nd ref="6" />
+    <nd ref="7" />
+    <nd ref="8" />
+    <nd ref="1" />
+    <tag k="landuse" v="industrial" />
+    <tag k="industrial" v="port" />
+    <tag k="port" v="cargo" />
+    <tag k="name" v="Synthetic Concave Cargo Port" />
+    <tag k="cargo" v="dry_bulk" />
+    <tag k="owner" v="Fixture Owner" />
   </way>
   <way id="201" version="1">
-    <nd ref="9"/>
-    <nd ref="10"/>
-    <nd ref="11"/>
-    <nd ref="12"/>
-    <nd ref="9"/>
-    <tag k="landuse" v="port"/>
-    <tag k="name" v="Synthetic Sea Port"/>
-    <tag k="port:type" v="seaport"/>
-    <tag k="wikidata" v="Q12345"/>
+    <nd ref="9" />
+    <nd ref="10" />
+    <nd ref="11" />
+    <nd ref="12" />
+    <nd ref="9" />
+    <tag k="landuse" v="port" />
+    <tag k="name" v="Synthetic Sea Port" />
+    <tag k="port:type" v="seaport" />
+    <tag k="wikidata" v="Q12345" />
   </way>
   <way id="202" version="1">
-    <nd ref="13"/>
-    <nd ref="14"/>
-    <nd ref="15"/>
-    <nd ref="16"/>
-    <nd ref="13"/>
+    <nd ref="13" />
+    <nd ref="14" />
+    <nd ref="15" />
+    <nd ref="16" />
+    <nd ref="13" />
   </way>
   <relation id="300" version="1">
-    <member type="way" ref="202" role="outer"/>
-    <tag k="type" v="multipolygon"/>
-    <tag k="seamark:type" v="harbour"/>
-    <tag k="name" v="Synthetic Inland Harbour"/>
-    <tag k="port:type" v="inland_port"/>
+    <member type="way" ref="202" role="outer" />
+    <tag k="type" v="multipolygon" />
+    <tag k="seamark:type" v="harbour" />
+    <tag k="name" v="Synthetic Inland Harbour" />
+    <tag k="port:type" v="inland_port" />
   </relation>
 </osm>
