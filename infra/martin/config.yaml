@@ -24,3 +24,6 @@ postgres:
     road_segments:
       schema: public
       function: road_segments_mvt
+    ports:
+      schema: public
+      function: ports_mvt

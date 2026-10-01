@@ -72,7 +72,7 @@ def assert_presentation_tile(tile: bytes) -> list[dict]:
 
 def test_road_schema_import_normalization_and_isolation() -> None:
     with get_engine().connect() as connection:
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0005_road_mvt_aggregation"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0006_port_domain"
         source = connection.execute(text("""
             SELECT id, publisher, license, url FROM public.data_sources WHERE slug = :slug
         """), {"slug": SOURCE_SLUG}).one()
