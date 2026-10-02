@@ -42,6 +42,7 @@ services:
       - ./pipelines/railways/railways.lua:/config/railways.lua:ro
       - ./pipelines/roads/roads.lua:/config/roads.lua:ro
       - ./pipelines/ports/ports.lua:/config/ports.lua:ro
+      - ./pipelines/waterways/waterways.lua:/config/waterways.lua:ro
     depends_on:
       postgres:
         condition: service_healthy

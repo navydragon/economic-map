@@ -5,6 +5,7 @@ export const demoSourceId = 'demo-sites'
 export const railwaySourceId = 'railway-segments'
 export const roadSourceId = 'road-segments'
 export const portSourceId = 'ports'
+export const waterwaySourceId = 'waterway-segments'
 
 export const style: StyleSpecification = {
   version: 8,
@@ -37,12 +38,33 @@ export const style: StyleSpecification = {
       maxzoom: 14,
       attribution: '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a>',
     },
+    [waterwaySourceId]: {
+      type: 'vector',
+      tiles: [`${config.tileUrl}/waterway_segments/{z}/{x}/{y}`],
+      minzoom: 5,
+      maxzoom: 14,
+      attribution: '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a>',
+    },
   },
   layers: [
     {
       id: 'background',
       type: 'background',
       paint: { 'background-color': '#e8edf0' },
+    },
+    {
+      id: 'waterway-centerlines',
+      type: 'line',
+      source: waterwaySourceId,
+      'source-layer': 'waterway_segments',
+      minzoom: 5,
+      maxzoom: 15,
+      paint: {
+        'line-color': ['match', ['get', 'waterway_class'],
+          'river', '#6f9fab', 'canal', '#6596a3', 'fairway', '#547f9b', '#6f9fab'],
+        'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.8, 10, 1.3, 14, 2.1],
+        'line-opacity': 0.68,
+      },
     },
     {
       id: 'road-main',

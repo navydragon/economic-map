@@ -50,7 +50,7 @@ export function MapViewport({ onTileStatusChange }: MapViewportProps) {
 
   return (
     <>
-      <div ref={containerRef} className="map" aria-label="Map of synthetic demo sites and railway infrastructure" />
+      <div ref={containerRef} className="map" aria-label="Map of synthetic demo sites and transport infrastructure" />
       {mapError && <div className="map-error" role="alert">Map error: {mapError}</div>}
     </>
   )

@@ -1405,6 +1405,7 @@ The first real domain schema is managed by Alembic. For railway import, source a
 For the manual real-data benchmark and its metrics, see [Railway performance baseline](docs/architecture/railway-performance.md).
 For major road ingestion and its first manual benchmark, see [OSM major road ingestion](docs/data/osm-roads.md) and [Road performance baseline](docs/architecture/road-performance.md).
 For civilian port ingestion and tile delivery, see [OSM port facilities](docs/data/osm-ports.md) and [ADR 0009](docs/adr/0009-ports-as-canonical-point-facilities.md).
+For the waterway centerline foundation, see [OSM waterways](docs/data/osm-waterways.md) and [ADR 0010](docs/adr/0010-waterway-centerlines-as-canonical-segments.md).
 
 ---
 

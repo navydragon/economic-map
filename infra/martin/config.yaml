@@ -27,3 +27,6 @@ postgres:
     ports:
       schema: public
       function: ports_mvt
+    waterway_segments:
+      schema: public
+      function: waterway_segments_mvt

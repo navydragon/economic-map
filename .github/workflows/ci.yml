@@ -100,6 +100,16 @@ jobs:
             --source-url "https://github.com/navydragon/economic-map/blob/main/data/fixtures/osm/ports.osm" \
             --snapshot-at 2026-01-01T00:00:00+00:00 \
             --retrieved-at 2026-01-01T00:00:00+00:00
+      - name: Import synthetic OSM waterway fixture
+        working-directory: apps/api
+        run: |
+          uv run --locked python ../../pipelines/waterways/import_waterways.py import \
+            --input ../../data/fixtures/osm/waterways.osm \
+            --source-slug ci-synthetic-waterways \
+            --source-name "CI synthetic waterway fixture" \
+            --source-url "https://github.com/navydragon/economic-map/blob/main/data/fixtures/osm/waterways.osm" \
+            --snapshot-at 2026-01-01T00:00:00+00:00 \
+            --retrieved-at 2026-01-01T00:00:00+00:00
       - name: Start Martin
         run: docker compose up -d --wait --wait-timeout 120 martin
       - name: Wait for Martin sources
@@ -108,7 +118,8 @@ jobs:
             if curl --fail --silent "$MARTIN_URL/demo_sites" > /dev/null \
               && curl --fail --silent "$MARTIN_URL/railway_segments" > /dev/null \
               && curl --fail --silent "$MARTIN_URL/road_segments" > /dev/null \
-              && curl --fail --silent "$MARTIN_URL/ports" > /dev/null; then
+              && curl --fail --silent "$MARTIN_URL/ports" > /dev/null \
+              && curl --fail --silent "$MARTIN_URL/waterway_segments" > /dev/null; then
               exit 0
             fi
             sleep 1
@@ -130,7 +141,7 @@ jobs:
           exit 1
       - name: Verify database, MVT, and API database health
         working-directory: apps/api
-        run: uv run --locked pytest tests/test_integration.py tests/test_railway_integration.py tests/test_road_integration.py tests/test_road_benchmark_integration.py tests/test_port_integration.py tests/test_port_benchmark_integration.py -q
+        run: uv run --locked pytest tests/test_integration.py tests/test_railway_integration.py tests/test_road_integration.py tests/test_road_benchmark_integration.py tests/test_port_integration.py tests/test_port_benchmark_integration.py tests/test_waterway_integration.py -q
       - name: Diagnostics
         if: failure()
         run: |
