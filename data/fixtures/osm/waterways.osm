@@ -36,10 +36,10 @@
   <node id="34" lat="55.7320" lon="37.6500" version="1" />
   <node id="35" lat="55.7340" lon="37.5000" version="1" />
   <node id="36" lat="55.7340" lon="37.6500" version="1" />
-  <node id="1000" lat="55.7350" lon="37.6500" version="1" />
-  <node id="1001" lat="55.7350" lon="37.5000" version="1" />
   <node id="37" lat="55.7360" lon="37.5000" version="1" />
   <node id="38" lat="55.7360" lon="37.6500" version="1" />
+  <node id="1000" lat="55.7350" lon="37.6500" version="1" />
+  <node id="1001" lat="55.7350" lon="37.5000" version="1" />
   <way id="100" version="1">
     <nd ref="1" />
     <nd ref="2" />
