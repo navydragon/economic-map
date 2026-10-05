@@ -3,12 +3,15 @@
 import math
 import os
 from pathlib import Path
+import runpy
 import subprocess
 import sys
 
 import httpx
 import mapbox_vector_tile
+from mapbox_vector_tile.Mapbox import vector_tile_pb2
 import pytest
+from shapely.geometry import shape
 from sqlalchemy import text
 
 from app.database import get_engine
@@ -49,9 +52,25 @@ def features(tile: bytes) -> list[dict]:
     return mapbox_vector_tile.decode(tile).get("waterway_segments", {}).get("features", [])
 
 
+def presentation_features(tile: bytes) -> list[dict]:
+    raw = vector_tile_pb2.tile()
+    raw.ParseFromString(tile)
+    assert all(layer.name == "waterway_segments" for layer in raw.layers)
+    assert all(not feature.HasField("id") for layer in raw.layers for feature in layer.features)
+    result = features(tile)
+    for feature in result:
+        properties = feature["properties"]
+        assert set(properties) in ({"waterway_class"}, {"name", "waterway_class"})
+        assert properties["waterway_class"] in ("river", "canal", "fairway")
+        geometry = shape(feature["geometry"])
+        assert geometry.geom_type in ("LineString", "MultiLineString")
+        assert geometry.is_valid and not geometry.is_empty
+    return result
+
+
 def test_waterway_schema_import_metadata_and_isolation() -> None:
     with get_engine().connect() as connection:
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0007_waterway_domain"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0008_waterway_mvt_aggregation"
         source = connection.execute(text("""
             SELECT id, publisher, license, url FROM public.data_sources WHERE slug = :slug
         """), {"slug": SOURCE_SLUG}).one()
@@ -127,8 +146,24 @@ def test_martin_waterway_source_and_zoom_contract() -> None:
             SELECT source_object_id, id FROM public.waterway_segments
             WHERE source_id = (SELECT id FROM public.data_sources WHERE slug = :slug)
         """), {"slug": SOURCE_SLUG}).all())
+        expected_groups = set(connection.execute(text("""
+            SELECT DISTINCT waterway_class, NULLIF(BTRIM(name), '')
+            FROM public.waterway_segments
+            WHERE source_id = (SELECT id FROM public.data_sources WHERE slug = :slug)
+        """), {"slug": SOURCE_SLUG}).all())
     assert httpx.get(f"{MARTIN_URL}/waterway_segments/4/8/5", timeout=10).status_code == 404
-    for zoom in (5, 7, 10, 13):
+    for zoom in (5, 6, 7, 8):
+        returned_groups = set()
+        for x, y in fixture_tiles(zoom):
+            response = httpx.get(f"{MARTIN_URL}/waterway_segments/{zoom}/{x}/{y}",
+                                 headers={"Accept": "application/x-protobuf"}, timeout=10)
+            assert response.status_code in (200, 204)
+            assert set(mapbox_vector_tile.decode(response.content)) <= {"waterway_segments"}
+            for feature in presentation_features(response.content):
+                props = feature["properties"]
+                returned_groups.add((props["waterway_class"], props.get("name")))
+        assert returned_groups == expected_groups
+    for zoom in (9, 11, 13):
         returned = {}
         for x, y in fixture_tiles(zoom):
             response = httpx.get(f"{MARTIN_URL}/waterway_segments/{zoom}/{x}/{y}",
@@ -136,6 +171,9 @@ def test_martin_waterway_source_and_zoom_contract() -> None:
             assert response.status_code in (200, 204)
             decoded = mapbox_vector_tile.decode(response.content)
             assert set(decoded) <= {"waterway_segments"}
+            raw = vector_tile_pb2.tile()
+            raw.ParseFromString(response.content)
+            assert all(feature.HasField("id") for layer in raw.layers for feature in layer.features)
             for feature in features(response.content):
                 returned[feature["id"]] = feature
         assert set(returned) == set(by_way.values())
@@ -229,8 +267,105 @@ def test_waterway_mvt_buffer_includes_near_line_only(zoom: int) -> None:
             far = connection.scalar(insert_sql, {**params, "object_id": -2, "offset": 96})
             assert tuple(connection.execute(bounds_sql, {**params, "id": near}).one()) == (False, True)
             assert tuple(connection.execute(bounds_sql, {**params, "id": far}).one()) == (False, False)
-            returned = {feature["id"] for feature in features(connection.scalar(text(
-                "SELECT public.waterway_segments_mvt(:z, :x, :y)"), params))}
-            assert near in returned and far not in returned
+            tile = connection.scalar(text(
+                "SELECT public.waterway_segments_mvt(:z, :x, :y)"), params)
+            if zoom < 9:
+                result = presentation_features(tile)
+                assert len(result) == 1
+                assert result[0]["properties"] == {"waterway_class": "river"}
+                assert shape(result[0]["geometry"]).bounds[0] == -32
+                connection.execute(text("DELETE FROM public.waterway_segments WHERE id = :id"),
+                                   {"id": near})
+                assert presentation_features(connection.scalar(text(
+                    "SELECT public.waterway_segments_mvt(:z, :x, :y)"), params)) == []
+            else:
+                returned = {feature["id"] for feature in features(tile)}
+                assert near in returned and far not in returned
+        finally:
+            transaction.rollback()
+
+
+@pytest.mark.parametrize("zoom", [5, 6, 7, 8])
+def test_low_zoom_groups_exact_name_class_and_all_physical_lines(zoom: int) -> None:
+    params = {"z": zoom, "x": 2**zoom // 4, "y": 2**zoom // 3, "slug": SOURCE_SLUG}
+    tile_sql = text("SELECT public.waterway_segments_mvt(:z, :x, :y)")
+    insert_sql = text("""
+        WITH bounds AS (SELECT ST_TileEnvelope(:z, :x, :y) AS tile)
+        INSERT INTO public.waterway_segments
+            (source_id, source_object_type, source_object_id, waterway_class, name,
+             boat_access, geom)
+        SELECT (SELECT id FROM public.data_sources WHERE slug = :slug),
+            'way', :object_id, :class, :name, 'yes',
+            ST_Transform(ST_MakeLine(
+                ST_SetSRID(ST_MakePoint(
+                    ST_XMin(tile) + (ST_XMax(tile) - ST_XMin(tile)) * 0.2,
+                    ST_YMin(tile) + (ST_YMax(tile) - ST_YMin(tile)) * :position), 3857),
+                ST_SetSRID(ST_MakePoint(
+                    ST_XMin(tile) + (ST_XMax(tile) - ST_XMin(tile)) * 0.8,
+                    ST_YMin(tile) + (ST_YMax(tile) - ST_YMin(tile)) * :position), 3857)
+            ), 4326)
+        FROM bounds RETURNING id
+    """)
+    cases = [
+        ("river", "Shared", 0.20),
+        ("river", " Shared ", 0.30),
+        ("river", None, 0.40),
+        ("river", "   ", 0.50),
+        ("canal", "Shared", 0.60),
+        ("river", "Other", 0.70),
+        ("river", "shared", 0.80),
+    ]
+    with get_engine().connect() as connection:
+        transaction = connection.begin()
+        try:
+            assert presentation_features(connection.scalar(tile_sql, params)) == []
+            ids = [connection.scalar(insert_sql, {**params, "object_id": -100 - index,
+                                                  "class": kind, "name": name,
+                                                  "position": position})
+                   for index, (kind, name, position) in enumerate(cases)]
+            result = presentation_features(connection.scalar(tile_sql, params))
+            groups = {(feature["properties"]["waterway_class"],
+                       feature["properties"].get("name")): feature for feature in result}
+            assert set(groups) == {("river", "Shared"), ("river", None),
+                                   ("canal", "Shared"), ("river", "Other"),
+                                   ("river", "shared")}
+            assert len(result) == 5
+            assert sum(len(shape(feature["geometry"]).geoms)
+                       if feature["geometry"]["type"] == "MultiLineString" else 1
+                       for feature in result) == len(cases)
+            assert connection.scalar(text("""
+                SELECT count(*) FROM public.waterway_segments WHERE id = ANY(:ids)
+            """), {"ids": ids}) == len(cases)
+        finally:
+            transaction.rollback()
+
+
+def test_waterway_aggregation_migration_roundtrip_preserves_detail(monkeypatch) -> None:
+    migration = runpy.run_path(str(Path(__file__).resolve().parents[1]
+                                  / "alembic/versions/0008_waterway_mvt_aggregation.py"))
+    with get_engine().connect() as connection:
+        transaction = connection.begin()
+        try:
+            monkeypatch.setattr(migration["op"], "execute", connection.exec_driver_sql)
+            snapshot_sql = text("SELECT row_to_json(w)::text FROM public.waterway_segments w ORDER BY id")
+            canonical = connection.execute(snapshot_sql).scalars().all()
+            tile_sql = text("SELECT public.waterway_segments_mvt(:z, :x, :y)")
+            detailed_params = [{"z": z, "x": x, "y": y}
+                               for z in (9, 11, 13) for x, y in fixture_tiles(z)]
+            detailed_before = [connection.scalar(tile_sql, params) for params in detailed_params]
+            migration["downgrade"]()
+            assert [connection.scalar(tile_sql, params) for params in detailed_params] == detailed_before
+            original_comment = connection.scalar(text("""
+                SELECT obj_description('public.waterway_segments_mvt(integer,integer,integer)'::regprocedure,
+                                       'pg_proc')
+            """))
+            assert 'centerline ways; navigation is not inferred' in original_comment
+            x, y = fixture_tiles(7)[0]
+            previous_low = features(connection.scalar(tile_sql, {"z": 7, "x": x, "y": y}))
+            assert previous_low and all(feature["id"] > 0 for feature in previous_low)
+            migration["upgrade"]()
+            assert [connection.scalar(tile_sql, params) for params in detailed_params] == detailed_before
+            assert presentation_features(connection.scalar(tile_sql, {"z": 7, "x": x, "y": y}))
+            assert connection.execute(snapshot_sql).scalars().all() == canonical
         finally:
             transaction.rollback()

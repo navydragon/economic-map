@@ -107,11 +107,16 @@ def test_martin_samples_and_report(monkeypatch) -> None:
             return Response()
 
     monkeypatch.setattr(benchmark.httpx, "Client", lambda **_: Client())
-    monkeypatch.setattr(benchmark.mapbox_vector_tile, "decode", lambda _: {
-        "waterway_segments": {"features": [
-            {"id": 1, "geometry": {"type": "LineString"},
-             "properties": {"waterway_class": "river", "boat_access": "yes"}}]}
-    })
+    def decoded(_):
+        zoom = int(requested[-1].split("/waterway_segments/")[1].split("/")[0])
+        feature = {"geometry": {"type": "LineString"},
+                   "properties": {"waterway_class": "river"}}
+        if zoom >= 9:
+            feature.update({"id": 1})
+            feature["properties"]["boat_access"] = "yes"
+        return {"waterway_segments": {"features": [feature]}}
+
+    monkeypatch.setattr(benchmark.mapbox_vector_tile, "decode", decoded)
     location = (37.6, 55.72)
     hotspots = {zoom: {"x": benchmark.tile_coordinates(*location, zoom)[0],
                        "y": benchmark.tile_coordinates(*location, zoom)[1],
@@ -168,6 +173,7 @@ def test_martin_samples_and_report(monkeypatch) -> None:
                                          "properties": {"waterway_class": "river", "tidal": "yes"}}]}}, "type"),
 ])
 def test_mvt_contract_failures(monkeypatch, decoded, error) -> None:
+    monkeypatch.setattr(benchmark, "ZOOMS", (9,))
     class Response:
         status_code = 200
         content = b"tile"
@@ -188,3 +194,35 @@ def test_mvt_contract_failures(monkeypatch, decoded, error) -> None:
     monkeypatch.setattr(benchmark.mapbox_vector_tile, "decode", lambda _: decoded)
     samples = benchmark.sample_tiles("http://localhost", [(0, 0)], {}, {1})
     assert all(error in sample["decode_error"] for sample in samples)
+
+
+def test_low_zoom_benchmark_rejects_segment_details_without_requiring_id(monkeypatch) -> None:
+    monkeypatch.setattr(benchmark, "ZOOMS", (5,))
+
+    class Response:
+        status_code = 200
+        content = b"tile"
+        num_bytes_downloaded = 4
+        headers = {}
+
+    class Client:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return None
+
+        def get(self, _):
+            return Response()
+
+    monkeypatch.setattr(benchmark.httpx, "Client", lambda **_: Client())
+    properties = {"waterway_class": "river", "name": "Synthetic River"}
+    monkeypatch.setattr(benchmark.mapbox_vector_tile, "decode", lambda _: {
+        "waterway_segments": {"features": [
+            {"geometry": {"type": "LineString"}, "properties": properties}]}
+    })
+    sample = benchmark.sample_tiles("http://localhost", [(0, 0)], {}, {1})[0]
+    assert sample["decode_error"] is None
+    properties["boat_access"] = "yes"
+    sample = benchmark.sample_tiles("http://localhost", [(0, 0)], {}, {1})[0]
+    assert "Unexpected waterway MVT property" in sample["decode_error"]

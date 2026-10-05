@@ -368,14 +368,15 @@ def sample_tiles(martin_url: str, locations: list[tuple[float, float]],
                         features = decoded["waterway_segments"]["features"]
                         sample["feature_count"] = len(features)
                         for feature in features:
-                            if (not isinstance(feature.get("id"), int)
-                                    or isinstance(feature.get("id"), bool)
-                                    or feature["id"] not in canonical_ids):
+                            if zoom >= 9 and (not isinstance(feature.get("id"), int)
+                                              or isinstance(feature.get("id"), bool)
+                                              or feature["id"] not in canonical_ids):
                                 raise ValueError(f"Noncanonical waterway feature ID: {feature.get('id')}")
                             if feature.get("geometry", {}).get("type") not in ("LineString", "MultiLineString"):
                                 raise ValueError("Waterway MVT geometry is not linear")
                             properties = feature.get("properties", {})
-                            if not set(properties) <= PUBLIC_FIELDS:
+                            allowed_fields = {"name", "waterway_class"} if zoom < 9 else PUBLIC_FIELDS
+                            if not set(properties) <= allowed_fields:
                                 raise ValueError("Unexpected waterway MVT property")
                             if properties.get("waterway_class") not in WATERWAY_CLASSES:
                                 raise ValueError("Invalid waterway MVT class")
